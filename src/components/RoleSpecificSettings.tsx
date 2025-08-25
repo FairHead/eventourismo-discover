@@ -16,83 +16,245 @@ import {
   Settings,
   Shield,
   BarChart,
-  UserCog
+  UserCog,
+  Mail,
+  Edit,
+  ExternalLink,
+  Clock,
+  Euro
 } from 'lucide-react';
 
 interface RoleSpecificSettingsProps {
   userProfile: any;
+  artistProfile?: any;
   role: string;
+  onEditArtistProfile?: () => void;
 }
 
-const RoleSpecificSettings: React.FC<RoleSpecificSettingsProps> = ({ userProfile, role }) => {
+const RoleSpecificSettings: React.FC<RoleSpecificSettingsProps> = ({ 
+  userProfile, 
+  artistProfile, 
+  role, 
+  onEditArtistProfile 
+}) => {
   if (role === 'artist') {
     return (
       <>
         {/* Artist Portfolio */}
         <Card className="border-border">
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Music className="w-5 h-5 text-primary" />
-              Künstler-Portfolio
+            <CardTitle className="flex items-center justify-between text-lg">
+              <div className="flex items-center gap-2">
+                <Music className="w-5 h-5 text-primary" />
+                Künstler-Portfolio
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onEditArtistProfile}
+              >
+                <Edit className="w-4 h-4" />
+              </Button>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <label className="text-sm text-muted-foreground">Künstlername</label>
-              <p className="font-medium">{userProfile?.display_name || 'Nicht angegeben'}</p>
-            </div>
-            
-            <div>
-              <label className="text-sm text-muted-foreground">Bio</label>
-              <p className="text-sm">{userProfile?.bio || 'Keine Bio hinzugefügt'}</p>
-            </div>
-
-            <div>
-              <label className="text-sm text-muted-foreground">Genres</label>
-              <div className="flex flex-wrap gap-2 mt-1">
-                {(userProfile?.preferred_genres && userProfile.preferred_genres.length > 0) ? (
-                  userProfile.preferred_genres.map((genre: string) => (
-                    <Badge key={genre} variant="secondary" className="bg-primary/10 text-primary">
-                      {genre}
-                    </Badge>
-                  ))
-                ) : (
-                  <span className="text-sm text-muted-foreground">Keine Genres ausgewählt</span>
-                )}
-              </div>
-            </div>
-
-            <Button variant="outline" className="w-full">
-              Portfolio bearbeiten
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Social Links */}
-        <Card className="border-border">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Globe className="w-5 h-5 text-primary" />
-              Social Media & Links
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {[
-              { icon: Globe, label: 'Website', placeholder: 'https://deine-website.de' },
-              { icon: Instagram, label: 'Instagram', placeholder: '@deinusername' },
-              { icon: Youtube, label: 'YouTube', placeholder: 'YouTube Kanal' },
-              { icon: Music, label: 'Spotify', placeholder: 'Spotify Artist Profil' },
-            ].map((link) => (
-              <div key={link.label} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <link.icon className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm">{link.label}</span>
+            {artistProfile ? (
+              <>
+                <div>
+                  <label className="text-sm text-muted-foreground">Künstlername</label>
+                  <p className="font-medium">{artistProfile.stage_name}</p>
                 </div>
-                <Button variant="ghost" size="sm">Hinzufügen</Button>
+                
+                {artistProfile.bio && (
+                  <div>
+                    <label className="text-sm text-muted-foreground">Bio</label>
+                    <p className="text-sm">{artistProfile.bio}</p>
+                  </div>
+                )}
+
+                {artistProfile.genres && artistProfile.genres.length > 0 && (
+                  <div>
+                    <label className="text-sm text-muted-foreground">Genres</label>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {artistProfile.genres.map((genre: string) => (
+                        <Badge key={genre} variant="secondary" className="bg-primary/10 text-primary">
+                          {genre}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {artistProfile.instruments && artistProfile.instruments.length > 0 && (
+                  <div>
+                    <label className="text-sm text-muted-foreground">Instrumente</label>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {artistProfile.instruments.map((instrument: string) => (
+                        <Badge key={instrument} variant="outline">
+                          {instrument}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {(artistProfile.experience_years || artistProfile.price_range) && (
+                  <div className="grid grid-cols-2 gap-4">
+                    {artistProfile.experience_years && (
+                      <div>
+                        <label className="text-sm text-muted-foreground">Erfahrung</label>
+                        <p className="text-sm flex items-center gap-1">
+                          <Clock className="w-4 h-4" />
+                          {artistProfile.experience_years} Jahre
+                        </p>
+                      </div>
+                    )}
+                    {artistProfile.price_range && (
+                      <div>
+                        <label className="text-sm text-muted-foreground">Preisklasse</label>
+                        <p className="text-sm flex items-center gap-1">
+                          <Euro className="w-4 h-4" />
+                          {artistProfile.price_range}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {(artistProfile.city || artistProfile.performance_radius_km) && (
+                  <div>
+                    <label className="text-sm text-muted-foreground">Standort & Aktionsradius</label>
+                    <p className="text-sm flex items-center gap-1">
+                      <MapPin className="w-4 h-4" />
+                      {artistProfile.city && `${artistProfile.city} `}
+                      {artistProfile.performance_radius_km && `(${artistProfile.performance_radius_km} km Radius)`}
+                    </p>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-4">
+                <p className="text-muted-foreground">Noch kein Künstler-Profil erstellt</p>
+                <Button
+                  variant="outline"
+                  onClick={onEditArtistProfile}
+                  className="mt-2"
+                >
+                  Profil erstellen
+                </Button>
               </div>
-            ))}
+            )}
           </CardContent>
         </Card>
+
+        {/* Social Links & Contact */}
+        {artistProfile && (
+          <Card className="border-border">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Globe className="w-5 h-5 text-primary" />
+                Kontakt & Social Media
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {/* Contact Information */}
+              {(artistProfile.contact_email || artistProfile.phone_number) && (
+                <div className="space-y-2">
+                  {artistProfile.contact_email && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Mail className="w-4 h-4 text-muted-foreground" />
+                      <span>{artistProfile.contact_email}</span>
+                    </div>
+                  )}
+                  {artistProfile.phone_number && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Phone className="w-4 h-4 text-muted-foreground" />
+                      <span>{artistProfile.phone_number}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Website */}
+              {artistProfile.website_url && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm">Website</span>
+                  </div>
+                  <Button variant="ghost" size="sm" asChild>
+                    <a href={artistProfile.website_url} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  </Button>
+                </div>
+              )}
+
+              {/* Social Media Links */}
+              {artistProfile.social_links && Object.keys(artistProfile.social_links).some(key => artistProfile.social_links[key]) && (
+                <>
+                  <Separator />
+                  <div className="space-y-2">
+                    {artistProfile.social_links.instagram && (
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Instagram className="w-4 h-4 text-pink-500" />
+                          <span className="text-sm">Instagram</span>
+                        </div>
+                        <Button variant="ghost" size="sm" asChild>
+                          <a href={artistProfile.social_links.instagram} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
+                        </Button>
+                      </div>
+                    )}
+                    {artistProfile.social_links.spotify && (
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Music className="w-4 h-4 text-green-500" />
+                          <span className="text-sm">Spotify</span>
+                        </div>
+                        <Button variant="ghost" size="sm" asChild>
+                          <a href={artistProfile.social_links.spotify} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
+                        </Button>
+                      </div>
+                    )}
+                    {artistProfile.social_links.youtube && (
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Youtube className="w-4 h-4 text-red-500" />
+                          <span className="text-sm">YouTube</span>
+                        </div>
+                        <Button variant="ghost" size="sm" asChild>
+                          <a href={artistProfile.social_links.youtube} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
+                        </Button>
+                      </div>
+                    )}
+                    {artistProfile.social_links.soundcloud && (
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 bg-orange-500 rounded-sm flex items-center justify-center">
+                            <span className="text-white text-xs font-bold">S</span>
+                          </div>
+                          <span className="text-sm">SoundCloud</span>
+                        </div>
+                        <Button variant="ghost" size="sm" asChild>
+                          <a href={artistProfile.social_links.soundcloud} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Performance Stats */}
         <Card className="border-border">

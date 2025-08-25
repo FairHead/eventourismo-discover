@@ -8,6 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import ProfilePictureUpload from '@/components/ProfilePictureUpload';
 import RoleSpecificSettings from '@/components/RoleSpecificSettings';
+import ArtistProfileModal from '@/components/ArtistProfileModal';
 import { 
   User, 
   Settings, 
@@ -25,7 +26,9 @@ const Profile: React.FC = () => {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [artistProfile, setArtistProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [showArtistModal, setShowArtistModal] = useState(false);
 
   const preferredGenres = ['Electronic', 'Jazz', 'Rock', 'Classical'];
   const stats = {
@@ -37,6 +40,7 @@ const Profile: React.FC = () => {
   useEffect(() => {
     if (user) {
       fetchUserProfile();
+      fetchArtistProfile();
     }
   }, [user]);
 
@@ -54,6 +58,23 @@ const Profile: React.FC = () => {
       console.error('Error fetching user profile:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchArtistProfile = async () => {
+    if (!user) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('artist_profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') throw error;
+      setArtistProfile(data);
+    } catch (error) {
+      console.error('Error fetching artist profile:', error);
     }
   };
 
@@ -84,6 +105,15 @@ const Profile: React.FC = () => {
 
   const handleAvatarUpdate = (newAvatarUrl: string) => {
     setUserProfile(prev => prev ? { ...prev, avatar_url: newAvatarUrl } : null);
+  };
+
+  const handleArtistProfileSuccess = () => {
+    fetchUserProfile();
+    fetchArtistProfile();
+  };
+
+  const handleBecomeArtist = () => {
+    setShowArtistModal(true);
   };
 
   if (loading) {
@@ -226,7 +256,12 @@ const Profile: React.FC = () => {
 
       {/* Role-specific Settings */}
       {userProfile && (
-        <RoleSpecificSettings userProfile={userProfile} role={userProfile.role} />
+        <RoleSpecificSettings 
+          userProfile={userProfile} 
+          artistProfile={artistProfile}
+          role={userProfile.role} 
+          onEditArtistProfile={() => setShowArtistModal(true)}
+        />
       )}
 
       {/* Menu Items */}
@@ -259,24 +294,26 @@ const Profile: React.FC = () => {
       </Card>
 
       {/* Role Switch */}
-      <Card className="border-border">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Konto-Typ wechseln</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Wechseln Sie zu einem Künstler- oder Veranstalter-Konto, um Events zu erstellen und zu verwalten.
-          </p>
-          <div className="flex gap-3">
-            <Button variant="outline" className="flex-1">
+      {userProfile?.role !== 'artist' && (
+        <Card className="border-border">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">Als Künstler anmelden</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Erstellen Sie Ihr Künstler-Profil und werden Sie Teil unserer Musik-Community.
+            </p>
+            <Button 
+              variant="default" 
+              className="w-full"
+              onClick={handleBecomeArtist}
+            >
+              <Music className="w-4 h-4 mr-2" />
               Künstler werden
             </Button>
-            <Button variant="outline" className="flex-1">
-              Veranstalter werden
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Logout */}
       <Card className="border-destructive/20">
@@ -291,6 +328,14 @@ const Profile: React.FC = () => {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Artist Profile Modal */}
+      <ArtistProfileModal
+        isOpen={showArtistModal}
+        onClose={() => setShowArtistModal(false)}
+        onSuccess={handleArtistProfileSuccess}
+        existingProfile={artistProfile}
+      />
     </div>
   );
 };

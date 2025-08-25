@@ -16,31 +16,70 @@ export type Database = {
     Tables: {
       artist_profiles: {
         Row: {
+          available_for_bookings: boolean | null
           avatar_url: string | null
           bio: string | null
+          city: string | null
+          contact_email: string | null
           created_at: string
+          description: string | null
+          experience_years: number | null
+          genres: string[] | null
           id: string
+          instruments: string[] | null
           links: Json | null
+          performance_radius_km: number | null
+          phone_number: string | null
+          price_range: string | null
+          social_links: Json | null
+          stage_name: string | null
           updated_at: string
           user_id: string
+          website_url: string | null
         }
         Insert: {
+          available_for_bookings?: boolean | null
           avatar_url?: string | null
           bio?: string | null
+          city?: string | null
+          contact_email?: string | null
           created_at?: string
+          description?: string | null
+          experience_years?: number | null
+          genres?: string[] | null
           id?: string
+          instruments?: string[] | null
           links?: Json | null
+          performance_radius_km?: number | null
+          phone_number?: string | null
+          price_range?: string | null
+          social_links?: Json | null
+          stage_name?: string | null
           updated_at?: string
           user_id: string
+          website_url?: string | null
         }
         Update: {
+          available_for_bookings?: boolean | null
           avatar_url?: string | null
           bio?: string | null
+          city?: string | null
+          contact_email?: string | null
           created_at?: string
+          description?: string | null
+          experience_years?: number | null
+          genres?: string[] | null
           id?: string
+          instruments?: string[] | null
           links?: Json | null
+          performance_radius_km?: number | null
+          phone_number?: string | null
+          price_range?: string | null
+          social_links?: Json | null
+          stage_name?: string | null
           updated_at?: string
           user_id?: string
+          website_url?: string | null
         }
         Relationships: [
           {
