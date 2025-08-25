@@ -52,16 +52,38 @@ export default {
 					DEFAULT: 'hsl(var(--card))',
 					foreground: 'hsl(var(--card-foreground))'
 				},
-				sidebar: {
-					DEFAULT: 'hsl(var(--sidebar-background))',
-					foreground: 'hsl(var(--sidebar-foreground))',
-					primary: 'hsl(var(--sidebar-primary))',
-					'primary-foreground': 'hsl(var(--sidebar-primary-foreground))',
-					accent: 'hsl(var(--sidebar-accent))',
-					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
-					border: 'hsl(var(--sidebar-border))',
-					ring: 'hsl(var(--sidebar-ring))'
-				}
+				// Event status colors
+				live: {
+					DEFAULT: 'hsl(var(--live))',
+					foreground: 'hsl(var(--live-foreground))'
+				},
+				upcoming: {
+					DEFAULT: 'hsl(var(--upcoming))',
+					foreground: 'hsl(var(--upcoming-foreground))'
+				},
+				past: {
+					DEFAULT: 'hsl(var(--past))',
+					foreground: 'hsl(var(--past-foreground))'
+				},
+				// Music genre colors
+				rock: 'hsl(var(--rock))',
+				electronic: 'hsl(var(--electronic))',
+				jazz: 'hsl(var(--jazz))',
+				classical: 'hsl(var(--classical))',
+				folk: 'hsl(var(--folk))'
+			},
+			backgroundImage: {
+				'gradient-primary': 'var(--gradient-primary)',
+				'gradient-secondary': 'var(--gradient-secondary)',
+				'gradient-card': 'var(--gradient-card)',
+			},
+			boxShadow: {
+				'glow': 'var(--shadow-glow)',
+				'card': 'var(--shadow-card)',
+			},
+			transitionTimingFunction: {
+				'smooth': 'cubic-bezier(0.4, 0, 0.2, 1)',
+				'bounce': 'cubic-bezier(0.68, -0.55, 0.265, 1.55)',
 			},
 			borderRadius: {
 				lg: 'var(--radius)',

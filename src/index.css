@@ -2,95 +2,74 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* Eventourismo Design System - Premium Music Event App */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-
-    --radius: 0.5rem;
-
-    --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
-  }
-
-  .dark {
-    --background: 222.2 84% 4.9%;
+    /* Base Colors - Dark Theme Primary */
+    --background: 222 47% 4%;
     --foreground: 210 40% 98%;
 
-    --card: 222.2 84% 4.9%;
+    --card: 222 47% 6%;
     --card-foreground: 210 40% 98%;
 
-    --popover: 222.2 84% 4.9%;
+    --popover: 222 47% 6%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    /* Primary - Electric Purple */
+    --primary: 271 91% 65%;
+    --primary-foreground: 222 47% 4%;
 
-    --secondary: 217.2 32.6% 17.5%;
+    /* Secondary - Deep Blue */
+    --secondary: 217 91% 20%;
     --secondary-foreground: 210 40% 98%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    /* Muted */
+    --muted: 222 47% 8%;
+    --muted-foreground: 215 20% 65%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    /* Accent - Vibrant Orange */
+    --accent: 25 95% 60%;
+    --accent-foreground: 222 47% 4%;
 
-    --destructive: 0 62.8% 30.6%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --border: 222 47% 12%;
+    --input: 222 47% 8%;
+    --ring: 271 91% 65%;
+
+    --radius: 0.75rem;
+
+    /* Event Status Colors */
+    --live: 120 95% 55%;
+    --live-foreground: 222 47% 4%;
+    
+    --upcoming: 45 95% 60%;
+    --upcoming-foreground: 222 47% 4%;
+    
+    --past: 215 20% 45%;
+    --past-foreground: 210 40% 98%;
+
+    /* Music Genre Colors */
+    --rock: 0 95% 60%;
+    --electronic: 271 91% 65%;
+    --jazz: 45 95% 60%;
+    --classical: 210 91% 65%;
+    --folk: 120 40% 50%;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(271 91% 65%), hsl(25 95% 60%));
+    --gradient-secondary: linear-gradient(135deg, hsl(217 91% 20%), hsl(271 91% 65%));
+    --gradient-card: linear-gradient(135deg, hsl(222 47% 6%), hsl(222 47% 8%));
+    
+    /* Shadows */
+    --shadow-glow: 0 0 30px hsl(271 91% 65% / 0.3);
+    --shadow-card: 0 10px 30px -10px hsl(222 47% 2% / 0.8);
+    
+    /* Animations */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
   }
 }
 
@@ -100,6 +79,49 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
+    background: hsl(var(--background));
+    background-image: 
+      radial-gradient(at 20% 80%, hsl(271 91% 65% / 0.05) 0px, transparent 50%),
+      radial-gradient(at 80% 20%, hsl(25 95% 60% / 0.05) 0px, transparent 50%);
+  }
+
+  /* Mobile optimizations */
+  @media (max-width: 768px) {
+    body {
+      overflow-x: hidden;
+    }
+  }
+
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--muted));
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--primary));
+    border-radius: 3px;
+  }
+
+  /* Gradient text utility */
+  .gradient-text {
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Glow effect utility */
+  .glow {
+    box-shadow: var(--shadow-glow);
   }
 }
