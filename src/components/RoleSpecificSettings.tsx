@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,8 +21,15 @@ import {
   Edit,
   ExternalLink,
   Clock,
-  Euro
+  Euro,
+  Plus,
+  UserPlus
 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import BandProfileModal from './BandProfileModal';
+import BandInvitationModal from './BandInvitationModal';
+import BandInvitations from './BandInvitations';
 
 interface RoleSpecificSettingsProps {
   userProfile: any;
@@ -37,6 +44,68 @@ const RoleSpecificSettings: React.FC<RoleSpecificSettingsProps> = ({
   role, 
   onEditArtistProfile 
 }) => {
+  const { user } = useAuth();
+  const [bands, setBands] = useState<any[]>([]);
+  const [showBandModal, setShowBandModal] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [selectedBand, setSelectedBand] = useState<any>(null);
+  const [selectedBandForInvite, setSelectedBandForInvite] = useState<any>(null);
+
+  const fetchUserBands = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('band_members')
+        .select(`
+          *,
+          bands (
+            id,
+            name,
+            bio,
+            city,
+            avatar_url,
+            social_links,
+            website_url,
+            genres,
+            slug,
+            created_by
+          )
+        `)
+        .eq('artist_id', user.id)
+        .eq('is_active', true);
+
+      if (error) throw error;
+      setBands(data?.map(m => ({ ...m.bands, memberRole: m.role })) || []);
+    } catch (error) {
+      console.error('Error fetching bands:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (role === 'artist') {
+      fetchUserBands();
+    }
+  }, [user, role]);
+
+  const handleBandSuccess = () => {
+    fetchUserBands();
+    setSelectedBand(null);
+  };
+
+  const handleEditBand = (band: any) => {
+    setSelectedBand(band);
+    setShowBandModal(true);
+  };
+
+  const handleInviteArtists = (band: any) => {
+    setSelectedBandForInvite(band);
+    setShowInviteModal(true);
+  };
+
+  const handleInviteSuccess = () => {
+    setSelectedBandForInvite(null);
+  };
   if (role === 'artist') {
     return (
       <>
@@ -279,6 +348,135 @@ const RoleSpecificSettings: React.FC<RoleSpecificSettingsProps> = ({
           </Card>
         )}
 
+        {/* Bands */}
+        <Card className="border-border">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center justify-between text-lg">
+              <div className="flex items-center gap-2">
+                <Users className="w-5 h-5 text-primary" />
+                Meine Bands
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowBandModal(true)}
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {bands.length > 0 ? (
+              bands.map((band) => (
+                <div key={band.id} className="border rounded-lg p-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center">
+                      {band.avatar_url ? (
+                        <img
+                          src={band.avatar_url}
+                          alt={band.name}
+                          className="w-12 h-12 rounded-full object-cover"
+                        />
+                      ) : (
+                        <Users className="w-6 h-6 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-semibold">{band.name}</h4>
+                        <Badge variant="secondary" className="text-xs">
+                          {band.memberRole === 'admin' ? 'Admin' : 
+                           band.memberRole === 'manager' ? 'Manager' : 'Mitglied'}
+                        </Badge>
+                      </div>
+                      {band.city && (
+                        <p className="text-sm text-muted-foreground">{band.city}</p>
+                      )}
+                      {band.bio && (
+                        <p className="text-sm text-muted-foreground mt-1">{band.bio}</p>
+                      )}
+                    </div>
+                    <div className="flex gap-1">
+                      {(band.created_by === user?.id || band.memberRole === 'admin' || band.memberRole === 'manager') && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditBand(band)}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleInviteArtists(band)}
+                          >
+                            <UserPlus className="w-4 h-4" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {band.genres && band.genres.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {band.genres.slice(0, 3).map((genre: string) => (
+                        <Badge key={genre} variant="outline" className="text-xs">
+                          {genre}
+                        </Badge>
+                      ))}
+                      {band.genres.length > 3 && (
+                        <Badge variant="outline" className="text-xs">
+                          +{band.genres.length - 3}
+                        </Badge>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2 text-sm">
+                    {band.website_url && (
+                      <Button variant="ghost" size="sm" asChild>
+                        <a href={band.website_url} target="_blank" rel="noopener noreferrer">
+                          <Globe className="w-4 h-4" />
+                        </a>
+                      </Button>
+                    )}
+                    {band.social_links?.instagram && (
+                      <Button variant="ghost" size="sm" asChild>
+                        <a href={band.social_links.instagram} target="_blank" rel="noopener noreferrer">
+                          <Instagram className="w-4 h-4 text-pink-500" />
+                        </a>
+                      </Button>
+                    )}
+                    {band.social_links?.youtube && (
+                      <Button variant="ghost" size="sm" asChild>
+                        <a href={band.social_links.youtube} target="_blank" rel="noopener noreferrer">
+                          <Youtube className="w-4 h-4 text-red-500" />
+                        </a>
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-6 text-muted-foreground">
+                <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p>Noch keine Bands</p>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowBandModal(true)}
+                  className="mt-2"
+                >
+                  Erste Band gründen
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Band Invitations */}
+        <BandInvitations onUpdate={fetchUserBands} />
+
         {/* Performance Stats */}
         <Card className="border-border">
           <CardHeader className="pb-3">
@@ -300,6 +498,30 @@ const RoleSpecificSettings: React.FC<RoleSpecificSettingsProps> = ({
             </div>
           </CardContent>
         </Card>
+
+        {/* Band Modals */}
+        <BandProfileModal
+          isOpen={showBandModal}
+          onClose={() => {
+            setShowBandModal(false);
+            setSelectedBand(null);
+          }}
+          onSuccess={handleBandSuccess}
+          existingBand={selectedBand}
+        />
+
+        {selectedBandForInvite && (
+          <BandInvitationModal
+            isOpen={showInviteModal}
+            onClose={() => {
+              setShowInviteModal(false);
+              setSelectedBandForInvite(null);
+            }}
+            onSuccess={handleInviteSuccess}
+            bandId={selectedBandForInvite.id}
+            bandName={selectedBandForInvite.name}
+          />
+        )}
       </>
     );
   }

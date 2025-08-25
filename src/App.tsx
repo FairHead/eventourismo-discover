@@ -7,6 +7,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import MapPage from "./pages/MapPage";
 import Profile from "./pages/Profile";
 import Auth from "./pages/Auth";
+import BandProfile from "./pages/BandProfile";
 import BottomNavigation from "./components/BottomNavigation";
 import ProtectedRoute from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
@@ -46,6 +47,11 @@ const App = () => (
               <Route path="/profile" element={
                 <ProtectedRoute>
                   <Profile />
+                </ProtectedRoute>
+              } />
+              <Route path="/band/:slug" element={
+                <ProtectedRoute>
+                  <BandProfile />
                 </ProtectedRoute>
               } />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

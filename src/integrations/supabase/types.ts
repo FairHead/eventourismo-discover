@@ -91,8 +91,167 @@ export type Database = {
           },
         ]
       }
+      band_invitations: {
+        Row: {
+          band_id: string
+          created_at: string
+          expires_at: string | null
+          id: string
+          invited_instruments: string[] | null
+          invited_role: string | null
+          invitee_id: string
+          inviter_id: string
+          message: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          band_id: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          invited_instruments?: string[] | null
+          invited_role?: string | null
+          invitee_id: string
+          inviter_id: string
+          message?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          band_id?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          invited_instruments?: string[] | null
+          invited_role?: string | null
+          invitee_id?: string
+          inviter_id?: string
+          message?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "band_invitations_band_id_fkey"
+            columns: ["band_id"]
+            isOneToOne: false
+            referencedRelation: "bands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      band_members: {
+        Row: {
+          artist_id: string
+          band_id: string
+          created_at: string
+          id: string
+          instruments: string[] | null
+          is_active: boolean | null
+          joined_at: string
+          role: string | null
+        }
+        Insert: {
+          artist_id: string
+          band_id: string
+          created_at?: string
+          id?: string
+          instruments?: string[] | null
+          is_active?: boolean | null
+          joined_at?: string
+          role?: string | null
+        }
+        Update: {
+          artist_id?: string
+          band_id?: string
+          created_at?: string
+          id?: string
+          instruments?: string[] | null
+          is_active?: boolean | null
+          joined_at?: string
+          role?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "band_members_artist_id_fkey"
+            columns: ["artist_id"]
+            isOneToOne: false
+            referencedRelation: "artist_profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "band_members_band_id_fkey"
+            columns: ["band_id"]
+            isOneToOne: false
+            referencedRelation: "bands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bands: {
+        Row: {
+          active: boolean | null
+          avatar_url: string | null
+          bio: string | null
+          city: string | null
+          country: string | null
+          cover_image_url: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          formation_year: number | null
+          genres: string[] | null
+          id: string
+          name: string
+          slug: string | null
+          social_links: Json | null
+          updated_at: string
+          website_url: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          avatar_url?: string | null
+          bio?: string | null
+          city?: string | null
+          country?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          formation_year?: number | null
+          genres?: string[] | null
+          id?: string
+          name: string
+          slug?: string | null
+          social_links?: Json | null
+          updated_at?: string
+          website_url?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          avatar_url?: string | null
+          bio?: string | null
+          city?: string | null
+          country?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          formation_year?: number | null
+          genres?: string[] | null
+          id?: string
+          name?: string
+          slug?: string | null
+          social_links?: Json | null
+          updated_at?: string
+          website_url?: string | null
+        }
+        Relationships: []
+      }
       events: {
         Row: {
+          band_id: string | null
           created_at: string
           description: string | null
           end_utc: string
@@ -113,6 +272,7 @@ export type Database = {
           website_url: string | null
         }
         Insert: {
+          band_id?: string | null
           created_at?: string
           description?: string | null
           end_utc: string
@@ -133,6 +293,7 @@ export type Database = {
           website_url?: string | null
         }
         Update: {
+          band_id?: string | null
           created_at?: string
           description?: string | null
           end_utc?: string
@@ -153,6 +314,13 @@ export type Database = {
           website_url?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "events_band_id_fkey"
+            columns: ["band_id"]
+            isOneToOne: false
+            referencedRelation: "bands"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "events_organizer_id_fkey"
             columns: ["organizer_id"]
@@ -442,6 +610,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_band_slug: {
+        Args: { band_name: string }
+        Returns: string
+      }
       get_current_user_role: {
         Args: Record<PropertyKey, never>
         Returns: Database["public"]["Enums"]["user_role"]
