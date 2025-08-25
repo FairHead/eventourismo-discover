@@ -88,11 +88,11 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData }) => 
 
       {/* Panel */}
       <div className={cn(
-        "fixed left-0 top-0 h-full w-full md:w-96 bg-card border-r border-border shadow-2xl z-50 transition-transform duration-300 ease-out overflow-y-auto",
+        "fixed left-0 top-0 h-full w-full md:w-96 bg-card/95 backdrop-blur-md border-r border-border shadow-2xl z-50 transition-transform duration-300 ease-out overflow-y-auto",
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         {/* Header */}
-        <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border p-4 flex items-center justify-between">
+        <div className="sticky top-0 bg-card/98 backdrop-blur-md border-b border-border p-4 flex items-center justify-between z-10">
           <div className="flex items-center gap-2">
             {getStatusBadge(eventData.status)}
             {eventData.status === 'live' && (
@@ -102,7 +102,12 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData }) => 
               </div>
             )}
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose}>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={onClose}
+            className="hover:bg-muted/50 relative z-10"
+          >
             <X className="w-4 h-4" />
           </Button>
         </div>
@@ -179,12 +184,12 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData }) => 
           <div className="grid grid-cols-2 gap-3">
             <Button 
               variant={eventData.isFavorite ? "default" : "outline"}
-              className="justify-start gap-2"
+              className="justify-start gap-2 relative z-0"
             >
               <Heart className={cn("w-4 h-4", eventData.isFavorite && "fill-current")} />
               Merken
             </Button>
-            <Button variant="outline" className="justify-start gap-2">
+            <Button variant="outline" className="justify-start gap-2 relative z-0">
               <Share2 className="w-4 h-4" />
               Teilen
             </Button>
@@ -196,18 +201,18 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData }) => 
               <Separator />
               <div className="space-y-2">
                 {eventData.ticketUrl && (
-                  <Button variant="gradient" className="w-full justify-start gap-2">
+                  <Button variant="default" className="w-full justify-start gap-2 relative z-0">
                     <ExternalLink className="w-4 h-4" />
                     Tickets kaufen
                   </Button>
                 )}
                 {eventData.websiteUrl && (
-                  <Button variant="outline" className="w-full justify-start gap-2">
+                  <Button variant="outline" className="w-full justify-start gap-2 relative z-0">
                     <ExternalLink className="w-4 h-4" />
                     Website besuchen
                   </Button>
                 )}
-                <Button variant="outline" className="w-full justify-start gap-2">
+                <Button variant="outline" className="w-full justify-start gap-2 relative z-0">
                   <MapPin className="w-4 h-4" />
                   Route öffnen
                 </Button>
@@ -230,7 +235,7 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData }) => 
           {eventData.status === 'upcoming' && (
             <div className="space-y-3">
               <Separator />
-              <Button variant="outline" className="w-full justify-start gap-2">
+              <Button variant="outline" className="w-full justify-start gap-2 relative z-0">
                 <Calendar className="w-4 h-4" />
                 Erinnerung setzen
               </Button>

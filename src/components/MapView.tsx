@@ -141,26 +141,27 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick }) => {
   return (
     <div className="relative w-full h-screen">
       {/* Search & Filter Bar */}
-      <div className="absolute top-4 left-4 right-4 z-10 flex gap-2">
+      <div className="absolute top-4 left-4 right-4 z-20 flex gap-2">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4 z-10" />
           <Input
             placeholder="Nach Events, Künstlern, Venues suchen..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 bg-card/80 backdrop-blur-sm border-border"
+            className="pl-10 bg-card/90 backdrop-blur-md border-border shadow-lg"
           />
         </div>
-        <Button variant="map" size="icon">
+        <Button variant="secondary" size="icon" className="bg-card/90 backdrop-blur-md border-border shadow-lg">
           <Filter className="w-4 h-4" />
         </Button>
       </div>
 
       {/* Location Button */}
-      <div className="absolute top-20 right-4 z-10">
+      <div className="absolute top-20 right-4 z-15">
         <Button
-          variant="map"
+          variant="secondary"
           size="icon"
+          className="bg-card/90 backdrop-blur-md border-border shadow-lg"
           onClick={() => {
             if (userLocation && map.current) {
               map.current.flyTo({
@@ -176,8 +177,8 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick }) => {
       </div>
 
       {/* Stats Overlay */}
-      <div className="absolute bottom-4 left-4 z-10">
-        <div className="bg-card/80 backdrop-blur-sm border border-border rounded-lg p-3 shadow-card">
+      <div className="absolute bottom-4 left-4 z-15">
+        <div className="bg-card/90 backdrop-blur-md border border-border rounded-lg p-3 shadow-lg">
           <div className="flex items-center gap-2 text-sm">
             <Users className="w-4 h-4 text-primary" />
             <span className="text-muted-foreground">{demoEvents.length} Events in der Nähe</span>
@@ -190,14 +191,14 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick }) => {
 
       {/* Mapbox Token Warning */}
       {!localStorage.getItem('mapbox-token') && (
-        <div className="absolute inset-0 bg-background/90 backdrop-blur-sm flex items-center justify-center z-20">
-          <div className="bg-card p-6 rounded-lg border border-border shadow-card max-w-md text-center">
+        <div className="absolute inset-0 bg-background/95 backdrop-blur-md flex items-center justify-center z-30">
+          <div className="bg-card/95 backdrop-blur-md p-6 rounded-lg border border-border shadow-2xl max-w-md text-center">
             <h3 className="text-lg font-semibold mb-2">Mapbox Token erforderlich</h3>
             <p className="text-muted-foreground mb-4">
               Für die Kartenansicht benötigen Sie einen Mapbox API Token.
             </p>
             <Button 
-              variant="gradient"
+              variant="default"
               onClick={() => {
                 const token = prompt('Mapbox Token eingeben:');
                 if (token) {
