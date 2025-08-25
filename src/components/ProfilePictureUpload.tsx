@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Camera, Upload, User } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import ImageCropper from './ImageCropper';
 
 interface ProfilePictureUploadProps {
   currentAvatarUrl?: string;
@@ -20,6 +21,8 @@ const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({
   const { user } = useAuth();
   const { toast } = useToast();
   const [uploading, setUploading] = useState(false);
+  const [showCropper, setShowCropper] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const uploadAvatar = async (file: File) => {
@@ -29,7 +32,7 @@ const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({
       setUploading(true);
 
       // Create unique filename
-      const fileExt = file.name.split('.').pop();
+      const fileExt = 'jpg'; // Always use jpg for consistency
       const fileName = `${user.id}/avatar.${fileExt}`;
 
       // Delete old avatar if exists
@@ -82,6 +85,12 @@ const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({
     }
   };
 
+  const handleCroppedImage = async (croppedFile: File) => {
+    await uploadAvatar(croppedFile);
+    setShowCropper(false);
+    setSelectedImage('');
+  };
+
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -105,7 +114,15 @@ const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({
         return;
       }
 
-      uploadAvatar(file);
+      // Create temporary URL for cropping
+      const imageUrl = URL.createObjectURL(file);
+      setSelectedImage(imageUrl);
+      setShowCropper(true);
+    }
+    
+    // Reset file input
+    if (event.target) {
+      event.target.value = '';
     }
   };
 
@@ -121,36 +138,51 @@ const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({
   };
 
   return (
-    <div className="relative group">
-      <Avatar className="w-20 h-20">
-        <AvatarImage src={currentAvatarUrl} alt="Profilbild" />
-        <AvatarFallback className="bg-gradient-primary text-primary-foreground text-lg font-semibold">
-          {getInitials()}
-        </AvatarFallback>
-      </Avatar>
-      
-      <Button
-        size="sm"
-        variant="secondary"
-        className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full p-0 opacity-0 group-hover:opacity-100 transition-opacity bg-primary text-primary-foreground hover:bg-primary/90"
-        onClick={triggerFileSelect}
-        disabled={uploading}
-      >
-        {uploading ? (
-          <Upload className="w-4 h-4 animate-spin" />
-        ) : (
-          <Camera className="w-4 h-4" />
-        )}
-      </Button>
+    <>
+      <div className="relative group">
+        <Avatar className="w-20 h-20">
+          <AvatarImage src={currentAvatarUrl} alt="Profilbild" />
+          <AvatarFallback className="bg-gradient-primary text-primary-foreground text-lg font-semibold">
+            {getInitials()}
+          </AvatarFallback>
+        </Avatar>
+        
+        <Button
+          size="sm"
+          variant="secondary"
+          className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full p-0 opacity-0 group-hover:opacity-100 transition-opacity bg-primary text-primary-foreground hover:bg-primary/90"
+          onClick={triggerFileSelect}
+          disabled={uploading}
+        >
+          {uploading ? (
+            <Upload className="w-4 h-4 animate-spin" />
+          ) : (
+            <Camera className="w-4 h-4" />
+          )}
+        </Button>
 
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileSelect}
-        accept="image/*"
-        className="hidden"
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileSelect}
+          accept="image/*"
+          className="hidden"
+        />
+      </div>
+
+      <ImageCropper
+        isOpen={showCropper}
+        onClose={() => {
+          setShowCropper(false);
+          setSelectedImage('');
+          if (selectedImage) {
+            URL.revokeObjectURL(selectedImage);
+          }
+        }}
+        imageSrc={selectedImage}
+        onCropComplete={handleCroppedImage}
       />
-    </div>
+    </>
   );
 };
 
