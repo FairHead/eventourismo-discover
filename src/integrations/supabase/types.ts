@@ -411,6 +411,9 @@ export type Database = {
     Enums: {
       event_status: "draft" | "published" | "cancelled"
       event_type: "street" | "concert" | "theater" | "club" | "other"
+      favorite_target_type: "event" | "venue" | "artist"
+      rating_target_type: "event" | "venue" | "artist"
+      report_target_type: "event" | "venue" | "artist" | "user"
       target_type: "event" | "venue" | "comment"
       user_role: "user" | "artist" | "organizer" | "venue_admin" | "admin"
     }
@@ -542,6 +545,9 @@ export const Constants = {
     Enums: {
       event_status: ["draft", "published", "cancelled"],
       event_type: ["street", "concert", "theater", "club", "other"],
+      favorite_target_type: ["event", "venue", "artist"],
+      rating_target_type: ["event", "venue", "artist"],
+      report_target_type: ["event", "venue", "artist", "user"],
       target_type: ["event", "venue", "comment"],
       user_role: ["user", "artist", "organizer", "venue_admin", "admin"],
     },
