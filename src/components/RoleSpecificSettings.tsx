@@ -176,82 +176,105 @@ const RoleSpecificSettings: React.FC<RoleSpecificSettingsProps> = ({
               )}
 
               {/* Website */}
-              {artistProfile.website_url && (
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Globe className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm">Website</span>
-                  </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm">Website</span>
+                </div>
+                {artistProfile.website_url ? (
                   <Button variant="ghost" size="sm" asChild>
                     <a href={artistProfile.website_url} target="_blank" rel="noopener noreferrer">
                       <ExternalLink className="w-4 h-4" />
                     </a>
                   </Button>
-                </div>
-              )}
+                ) : (
+                  <Button variant="outline" size="sm" onClick={onEditArtistProfile}>
+                    Hinzufügen
+                  </Button>
+                )}
+              </div>
 
               {/* Social Media Links */}
-              {artistProfile.social_links && Object.keys(artistProfile.social_links).some(key => artistProfile.social_links[key]) && (
-                <>
-                  <Separator />
-                  <div className="space-y-2">
-                    {artistProfile.social_links.instagram && (
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Instagram className="w-4 h-4 text-pink-500" />
-                          <span className="text-sm">Instagram</span>
-                        </div>
-                        <Button variant="ghost" size="sm" asChild>
-                          <a href={artistProfile.social_links.instagram} target="_blank" rel="noopener noreferrer">
-                            <ExternalLink className="w-4 h-4" />
-                          </a>
-                        </Button>
-                      </div>
-                    )}
-                    {artistProfile.social_links.spotify && (
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Music className="w-4 h-4 text-green-500" />
-                          <span className="text-sm">Spotify</span>
-                        </div>
-                        <Button variant="ghost" size="sm" asChild>
-                          <a href={artistProfile.social_links.spotify} target="_blank" rel="noopener noreferrer">
-                            <ExternalLink className="w-4 h-4" />
-                          </a>
-                        </Button>
-                      </div>
-                    )}
-                    {artistProfile.social_links.youtube && (
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Youtube className="w-4 h-4 text-red-500" />
-                          <span className="text-sm">YouTube</span>
-                        </div>
-                        <Button variant="ghost" size="sm" asChild>
-                          <a href={artistProfile.social_links.youtube} target="_blank" rel="noopener noreferrer">
-                            <ExternalLink className="w-4 h-4" />
-                          </a>
-                        </Button>
-                      </div>
-                    )}
-                    {artistProfile.social_links.soundcloud && (
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 bg-orange-500 rounded-sm flex items-center justify-center">
-                            <span className="text-white text-xs font-bold">S</span>
-                          </div>
-                          <span className="text-sm">SoundCloud</span>
-                        </div>
-                        <Button variant="ghost" size="sm" asChild>
-                          <a href={artistProfile.social_links.soundcloud} target="_blank" rel="noopener noreferrer">
-                            <ExternalLink className="w-4 h-4" />
-                          </a>
-                        </Button>
-                      </div>
-                    )}
+              <Separator />
+              <div className="space-y-2">
+                {/* Instagram */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Instagram className="w-4 h-4 text-pink-500" />
+                    <span className="text-sm">Instagram</span>
                   </div>
-                </>
-              )}
+                  {artistProfile.social_links?.instagram ? (
+                    <Button variant="ghost" size="sm" asChild>
+                      <a href={artistProfile.social_links.instagram} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                    </Button>
+                  ) : (
+                    <Button variant="outline" size="sm" onClick={onEditArtistProfile}>
+                      Hinzufügen
+                    </Button>
+                  )}
+                </div>
+
+                {/* Spotify */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Music className="w-4 h-4 text-green-500" />
+                    <span className="text-sm">Spotify</span>
+                  </div>
+                  {artistProfile.social_links?.spotify ? (
+                    <Button variant="ghost" size="sm" asChild>
+                      <a href={artistProfile.social_links.spotify} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                    </Button>
+                  ) : (
+                    <Button variant="outline" size="sm" onClick={onEditArtistProfile}>
+                      Hinzufügen
+                    </Button>
+                  )}
+                </div>
+
+                {/* YouTube */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Youtube className="w-4 h-4 text-red-500" />
+                    <span className="text-sm">YouTube</span>
+                  </div>
+                  {artistProfile.social_links?.youtube ? (
+                    <Button variant="ghost" size="sm" asChild>
+                      <a href={artistProfile.social_links.youtube} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                    </Button>
+                  ) : (
+                    <Button variant="outline" size="sm" onClick={onEditArtistProfile}>
+                      Hinzufügen
+                    </Button>
+                  )}
+                </div>
+
+                {/* SoundCloud */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-orange-500 rounded-sm flex items-center justify-center">
+                      <span className="text-white text-xs font-bold">S</span>
+                    </div>
+                    <span className="text-sm">SoundCloud</span>
+                  </div>
+                  {artistProfile.social_links?.soundcloud ? (
+                    <Button variant="ghost" size="sm" asChild>
+                      <a href={artistProfile.social_links.soundcloud} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                    </Button>
+                  ) : (
+                    <Button variant="outline" size="sm" onClick={onEditArtistProfile}>
+                      Hinzufügen
+                    </Button>
+                  )}
+                </div>
+              </div>
             </CardContent>
           </Card>
         )}
