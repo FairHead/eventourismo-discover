@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import mapboxgl from 'mapbox-gl';
+import MapboxGeocoder from '@mapbox/mapbox-gl-geocoder';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import '@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -46,26 +48,100 @@ const EventCreateModal: React.FC<EventCreateModalProps> = ({ isOpen, onClose, on
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !mapContainer.current) return;
 
-    // Initialize map when modal opens
-    if (!mapContainer.current) return;
+    let mounted = true;
 
-    const fetchMapboxToken = async () => {
+    const initializeMap = async () => {
       try {
         const { data, error } = await supabase.functions.invoke('get-mapbox-token');
         if (error) throw error;
         
+        if (!mounted) return;
+        
         mapboxgl.accessToken = data.token;
+
+        // Get user's current location
+        const getCurrentPosition = (): Promise<GeolocationPosition> => {
+          return new Promise((resolve, reject) => {
+            if (!navigator.geolocation) {
+              reject(new Error('Geolocation is not supported'));
+              return;
+            }
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: true,
+              timeout: 10000,
+              maximumAge: 60000
+            });
+          });
+        };
+
+        let initialCenter: [number, number] = [10.4515, 51.1657]; // Germany center
+        let initialZoom = 6;
+
+        try {
+          const position = await getCurrentPosition();
+          initialCenter = [position.coords.longitude, position.coords.latitude];
+          initialZoom = 12;
+          
+          // Update form data with current location
+          setFormData(prev => ({ 
+            ...prev, 
+            lat: position.coords.latitude, 
+            lng: position.coords.longitude 
+          }));
+        } catch (geoError) {
+          console.log('Could not get current location:', geoError);
+          // Continue with default location
+        }
+
+        if (!mounted) return;
         
         map.current = new mapboxgl.Map({
           container: mapContainer.current!,
           style: 'mapbox://styles/mapbox/streets-v12',
-          center: [10.4515, 51.1657], // Germany center
-          zoom: 6
+          center: initialCenter,
+          zoom: initialZoom
         });
 
+        // Add navigation controls
         map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
+
+        // Add geocoder for location search
+        const geocoder = new MapboxGeocoder({
+          accessToken: data.token,
+          mapboxgl: mapboxgl,
+          placeholder: 'Nach Orten suchen...',
+          countries: 'de'
+        });
+        
+        map.current.addControl(geocoder, 'top-left');
+
+        // Handle geocoder result
+        geocoder.on('result', (e) => {
+          const { center } = e.result;
+          const [lng, lat] = center;
+          
+          // Remove existing marker
+          if (marker.current) {
+            marker.current.remove();
+          }
+          
+          // Add new marker
+          marker.current = new mapboxgl.Marker({ color: '#ef4444' })
+            .setLngLat([lng, lat])
+            .addTo(map.current!);
+          
+          // Update form data
+          setFormData(prev => ({ ...prev, lat, lng }));
+        });
+
+        // Add initial marker if we have current location
+        if (initialZoom === 12) {
+          marker.current = new mapboxgl.Marker({ color: '#ef4444' })
+            .setLngLat(initialCenter)
+            .addTo(map.current);
+        }
 
         // Add click handler to place pin
         map.current.on('click', (e) => {
@@ -85,21 +161,32 @@ const EventCreateModal: React.FC<EventCreateModalProps> = ({ isOpen, onClose, on
           setFormData(prev => ({ ...prev, lat, lng }));
         });
 
-      } catch (error) {
-        console.error('Error fetching Mapbox token:', error);
-        toast({
-          title: "Fehler",
-          description: "Karte konnte nicht geladen werden",
-          variant: "destructive"
+        // Ensure map resizes properly when modal is opened
+        map.current.on('load', () => {
+          if (map.current) {
+            map.current.resize();
+          }
         });
+
+      } catch (error) {
+        console.error('Error initializing map:', error);
+        if (mounted) {
+          toast({
+            title: "Fehler",
+            description: "Karte konnte nicht geladen werden",
+            variant: "destructive"
+          });
+        }
       }
     };
 
+    // Delay initialization to ensure modal is fully rendered
     const timer = setTimeout(() => {
-      fetchMapboxToken();
-    }, 100);
+      initializeMap();
+    }, 200);
 
     return () => {
+      mounted = false;
       clearTimeout(timer);
       if (map.current) {
         map.current.remove();
@@ -285,7 +372,8 @@ const EventCreateModal: React.FC<EventCreateModalProps> = ({ isOpen, onClose, on
                 style={{ minHeight: '256px' }}
               />
               <p className="text-sm text-muted-foreground mt-2">
-                Klicken Sie auf die Karte, um den Event-Ort festzulegen
+                Klicken Sie auf die Karte oder suchen Sie nach einem Ort (oben links) um den Event-Ort festzulegen. 
+                Die Karte zeigt automatisch Ihren aktuellen Standort an.
               </p>
               {formData.lat && formData.lng && (
                 <p className="text-sm text-green-600 mt-1">
