@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
+import ProfilePictureUpload from '@/components/ProfilePictureUpload';
+import RoleSpecificSettings from '@/components/RoleSpecificSettings';
 import { 
   User, 
   Settings, 
@@ -80,6 +82,10 @@ const Profile: React.FC = () => {
     }
   };
 
+  const handleAvatarUpdate = (newAvatarUrl: string) => {
+    setUserProfile(prev => prev ? { ...prev, avatar_url: newAvatarUrl } : null);
+  };
+
   if (loading) {
     return (
       <div className="pb-20 px-4 py-6 space-y-6 min-h-screen bg-background">
@@ -101,9 +107,11 @@ const Profile: React.FC = () => {
       <Card className="bg-gradient-card border-border">
         <CardContent className="p-6">
           <div className="flex items-center space-x-4">
-            <div className="w-16 h-16 rounded-full bg-gradient-primary flex items-center justify-center">
-              <User className="w-8 h-8 text-primary-foreground" />
-            </div>
+            <ProfilePictureUpload
+              currentAvatarUrl={userProfile?.avatar_url}
+              displayName={userProfile?.display_name || `${userProfile?.first_name} ${userProfile?.last_name}` || ''}
+              onAvatarUpdate={handleAvatarUpdate}
+            />
             <div className="flex-1">
               <h2 className="text-xl font-semibold">{userProfile?.display_name || `${userProfile?.first_name} ${userProfile?.last_name}` || user?.email}</h2>
               <p className="text-muted-foreground">{getRoleDisplayName(userProfile?.role)} {userProfile?.city && `aus ${userProfile?.city}`}</p>
@@ -215,6 +223,11 @@ const Profile: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Role-specific Settings */}
+      {userProfile && (
+        <RoleSpecificSettings userProfile={userProfile} role={userProfile.role} />
+      )}
 
       {/* Menu Items */}
       <Card className="border-border">
