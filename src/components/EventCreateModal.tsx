@@ -164,7 +164,9 @@ const EventCreateModal: React.FC<EventCreateModalProps> = ({ isOpen, onClose, on
         // Ensure map resizes properly when modal is opened
         map.current.on('load', () => {
           if (map.current) {
-            map.current.resize();
+            setTimeout(() => {
+              map.current?.resize();
+            }, 100);
           }
         });
 
@@ -183,7 +185,7 @@ const EventCreateModal: React.FC<EventCreateModalProps> = ({ isOpen, onClose, on
     // Delay initialization to ensure modal is fully rendered
     const timer = setTimeout(() => {
       initializeMap();
-    }, 200);
+    }, 500);
 
     return () => {
       mounted = false;
@@ -368,8 +370,8 @@ const EventCreateModal: React.FC<EventCreateModalProps> = ({ isOpen, onClose, on
             <CardContent>
               <div 
                 ref={mapContainer} 
-                className="h-64 rounded-lg border"
-                style={{ minHeight: '256px' }}
+                className="w-full h-64 rounded-lg border"
+                style={{ minHeight: '256px', minWidth: '100%' }}
               />
               <p className="text-sm text-muted-foreground mt-2">
                 Klicken Sie auf die Karte oder suchen Sie nach einem Ort (oben links) um den Event-Ort festzulegen. 
