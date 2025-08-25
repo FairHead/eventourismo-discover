@@ -44,7 +44,7 @@ const Profile: React.FC = () => {
         .from('users')
         .select('*')
         .eq('id', user?.id)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
       setUserProfile(data);
