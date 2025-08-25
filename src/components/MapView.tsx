@@ -4,6 +4,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Search, Filter, MapPin, Users } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface EventPin {
   id: string;
@@ -25,6 +26,8 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick }) => {
   const [isMapboxReady, setIsMapboxReady] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+  const [mapboxToken, setMapboxToken] = useState<string | null>(null);
+  const [tokenError, setTokenError] = useState<string | null>(null);
 
   // Demo event pins - replace with actual data
   const demoEvents: EventPin[] = [
@@ -33,16 +36,31 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick }) => {
     { id: '3', title: 'Electronic Beats', lat: 52.516272, lng: 13.377722, type: 'venue', status: 'upcoming', genre: 'Electronic' },
   ];
 
+  // Fetch Mapbox token from Edge Function
+  useEffect(() => {
+    const fetchMapboxToken = async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke('get-mapbox-token');
+        
+        if (error) throw error;
+        
+        if (data?.token) {
+          setMapboxToken(data.token);
+        } else {
+          setTokenError('Mapbox Token nicht gefunden');
+        }
+      } catch (error) {
+        console.error('Error fetching Mapbox token:', error);
+        setTokenError('Fehler beim Laden des Mapbox Tokens');
+      }
+    };
+
+    fetchMapboxToken();
+  }, []);
+
   // Initialize map
   useEffect(() => {
-    if (!mapContainer.current) return;
-
-    // Set up Mapbox token (user needs to add this)
-    const mapboxToken = localStorage.getItem('mapbox-token');
-    if (!mapboxToken) {
-      console.warn('Mapbox token required. Please add your token in settings.');
-      return;
-    }
+    if (!mapContainer.current || !mapboxToken) return;
 
     mapboxgl.accessToken = mapboxToken;
 
@@ -69,7 +87,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick }) => {
     return () => {
       map.current?.remove();
     };
-  }, []);
+  }, [mapboxToken]);
 
   // Get user location
   useEffect(() => {
@@ -140,75 +158,86 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick }) => {
 
   return (
     <div className="relative w-full h-screen">
-      {/* Search & Filter Bar */}
-      <div className="absolute top-4 left-4 right-4 z-20 flex gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4 z-10" />
-          <Input
-            placeholder="Nach Events, Künstlern, Venues suchen..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 bg-card/90 backdrop-blur-md border-border shadow-lg"
-          />
+      {/* Map Container - Lower Z-Index */}
+      <div ref={mapContainer} className="absolute inset-0 rounded-lg" style={{ zIndex: 1 }} />
+
+      {/* UI Overlay - Higher Z-Index */}
+      <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 10 }}>
+        {/* Search & Filter Bar */}
+        <div className="absolute top-4 left-4 right-4 flex gap-2 pointer-events-auto">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" style={{ zIndex: 12 }} />
+            <Input
+              placeholder="Nach Events, Künstlern, Venues suchen..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 bg-card/95 backdrop-blur-md border-border shadow-xl"
+              style={{ zIndex: 11 }}
+            />
+          </div>
+          <Button 
+            variant="secondary" 
+            size="icon" 
+            className="bg-card/95 backdrop-blur-md border-border shadow-xl"
+            style={{ zIndex: 11 }}
+          >
+            <Filter className="w-4 h-4" />
+          </Button>
         </div>
-        <Button variant="secondary" size="icon" className="bg-card/90 backdrop-blur-md border-border shadow-lg">
-          <Filter className="w-4 h-4" />
-        </Button>
-      </div>
 
-      {/* Location Button */}
-      <div className="absolute top-20 right-4 z-15">
-        <Button
-          variant="secondary"
-          size="icon"
-          className="bg-card/90 backdrop-blur-md border-border shadow-lg"
-          onClick={() => {
-            if (userLocation && map.current) {
-              map.current.flyTo({
-                center: userLocation,
-                zoom: 14,
-                duration: 1000
-              });
-            }
-          }}
-        >
-          <MapPin className="w-4 h-4" />
-        </Button>
-      </div>
+        {/* Location Button */}
+        <div className="absolute top-20 right-4 pointer-events-auto">
+          <Button
+            variant="secondary"
+            size="icon"
+            className="bg-card/95 backdrop-blur-md border-border shadow-xl"
+            style={{ zIndex: 11 }}
+            onClick={() => {
+              if (userLocation && map.current) {
+                map.current.flyTo({
+                  center: userLocation,
+                  zoom: 14,
+                  duration: 1000
+                });
+              }
+            }}
+          >
+            <MapPin className="w-4 h-4" />
+          </Button>
+        </div>
 
-      {/* Stats Overlay */}
-      <div className="absolute bottom-4 left-4 z-15">
-        <div className="bg-card/90 backdrop-blur-md border border-border rounded-lg p-3 shadow-lg">
-          <div className="flex items-center gap-2 text-sm">
-            <Users className="w-4 h-4 text-primary" />
-            <span className="text-muted-foreground">{demoEvents.length} Events in der Nähe</span>
+        {/* Stats Overlay */}
+        <div className="absolute bottom-4 left-4 pointer-events-auto">
+          <div className="bg-card/95 backdrop-blur-md border border-border rounded-lg p-3 shadow-xl" style={{ zIndex: 11 }}>
+            <div className="flex items-center gap-2 text-sm">
+              <Users className="w-4 h-4 text-primary" />
+              <span className="text-muted-foreground">{demoEvents.length} Events in der Nähe</span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Map Container */}
-      <div ref={mapContainer} className="absolute inset-0 rounded-lg" />
-
-      {/* Mapbox Token Warning */}
-      {!localStorage.getItem('mapbox-token') && (
-        <div className="absolute inset-0 bg-background/95 backdrop-blur-md flex items-center justify-center z-30">
+      {/* Mapbox Token Error/Warning */}
+      {(tokenError || !mapboxToken) && (
+        <div className="absolute inset-0 bg-background/95 backdrop-blur-md flex items-center justify-center" style={{ zIndex: 20 }}>
           <div className="bg-card/95 backdrop-blur-md p-6 rounded-lg border border-border shadow-2xl max-w-md text-center">
-            <h3 className="text-lg font-semibold mb-2">Mapbox Token erforderlich</h3>
+            <h3 className="text-lg font-semibold mb-2">
+              {tokenError || 'Mapbox Token wird geladen...'}
+            </h3>
             <p className="text-muted-foreground mb-4">
-              Für die Kartenansicht benötigen Sie einen Mapbox API Token.
+              {tokenError 
+                ? 'Bitte fügen Sie Ihren Mapbox Token in den Supabase Secrets hinzu.'
+                : 'Die Karte wird geladen, sobald der Token verfügbar ist.'
+              }
             </p>
-            <Button 
-              variant="default"
-              onClick={() => {
-                const token = prompt('Mapbox Token eingeben:');
-                if (token) {
-                  localStorage.setItem('mapbox-token', token);
-                  window.location.reload();
-                }
-              }}
-            >
-              Token hinzufügen
-            </Button>
+            {tokenError && (
+              <Button 
+                variant="default"
+                onClick={() => window.location.reload()}
+              >
+                Neu laden
+              </Button>
+            )}
           </div>
         </div>
       )}
