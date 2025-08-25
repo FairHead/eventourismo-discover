@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import MapView from '@/components/MapView';
 import InfoPanel from '@/components/InfoPanel';
+import EventCreateModal from '@/components/EventCreateModal';
+import { Button } from '@/components/ui/button';
+import { Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -33,6 +36,7 @@ const MapPage: React.FC = () => {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [events, setEvents] = useState<EventData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -101,6 +105,38 @@ const MapPage: React.FC = () => {
     setSelectedEventId(null);
   };
 
+  const handleEventCreated = () => {
+    // Refetch events when a new event is created
+    const fetchEvents = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('events')
+          .select(`
+            *,
+            bands (
+              name,
+              avatar_url
+            ),
+            users (
+              display_name,
+              username
+            )
+          `)
+          .eq('status', 'published')
+          .gte('end_utc', new Date().toISOString())
+          .order('start_utc', { ascending: true });
+
+        if (error) throw error;
+
+        setEvents(data || []);
+      } catch (error) {
+        console.error('Error fetching events:', error);
+      }
+    };
+
+    fetchEvents();
+  };
+
   const selectedEvent = selectedEventId ? events.find(event => event.id === selectedEventId) : undefined;
 
   // Transform event data for InfoPanel compatibility
@@ -136,10 +172,28 @@ const MapPage: React.FC = () => {
         events={events}
         loading={loading}
       />
+      
+      {/* Floating Create Event Button */}
+      <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2 z-20">
+        <Button
+          onClick={() => setShowCreateModal(true)}
+          className="h-14 w-14 rounded-full shadow-xl bg-primary hover:bg-primary/90 text-primary-foreground"
+          size="icon"
+        >
+          <Plus className="h-6 w-6" />
+        </Button>
+      </div>
+
       <InfoPanel 
         isOpen={!!selectedEventId}
         onClose={handlePanelClose}
         eventData={transformedEventData}
+      />
+      
+      <EventCreateModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onEventCreated={handleEventCreated}
       />
     </div>
   );

@@ -36,7 +36,7 @@ const App = () => (
             } />
             <Route path="/create" element={
               <ProtectedRoute>
-                <EventCreate />
+                <div className="p-4 pb-20">Event erstellen ist nun auf der Hauptkarte verfügbar</div>
               </ProtectedRoute>
             } />
             <Route path="/favorites" element={
