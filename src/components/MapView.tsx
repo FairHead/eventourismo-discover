@@ -6,21 +6,38 @@ import { Input } from '@/components/ui/input';
 import { Search, Filter, MapPin, Users } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
-interface EventPin {
-  id: string;
-  title: string;
-  lat: number;
-  lng: number;
-  type: 'event' | 'venue';
-  status: 'live' | 'upcoming' | 'past';
-  genre: string;
-}
-
 interface MapViewProps {
   onPinClick?: (eventId: string) => void;
+  events?: EventData[];
+  loading?: boolean;
 }
 
-const MapView: React.FC<MapViewProps> = ({ onPinClick }) => {
+interface EventData {
+  id: string;
+  title: string;
+  description?: string;
+  event_type: string;
+  start_utc: string;
+  end_utc: string;
+  lat: number;
+  lng: number;
+  organizer_id: string;
+  band_id?: string;
+  genres: string[];
+  website_url?: string;
+  ticket_url?: string;
+  status: string;
+  bands?: {
+    name: string;
+    avatar_url?: string;
+  };
+  users?: {
+    display_name?: string;
+    username?: string;
+  };
+}
+
+const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = false }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const [isMapboxReady, setIsMapboxReady] = useState(false);
@@ -28,13 +45,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick }) => {
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [mapboxToken, setMapboxToken] = useState<string | null>(null);
   const [tokenError, setTokenError] = useState<string | null>(null);
-
-  // Demo event pins - replace with actual data
-  const demoEvents: EventPin[] = [
-    { id: '1', title: 'Jazz Night', lat: 52.520008, lng: 13.404954, type: 'event', status: 'live', genre: 'Jazz' },
-    { id: '2', title: 'Rock Concert', lat: 52.518623, lng: 13.376200, type: 'event', status: 'upcoming', genre: 'Rock' },
-    { id: '3', title: 'Electronic Beats', lat: 52.516272, lng: 13.377722, type: 'venue', status: 'upcoming', genre: 'Electronic' },
-  ];
+  const [markers, setMarkers] = useState<mapboxgl.Marker[]>([]);
 
   // Fetch Mapbox token from Edge Function
   useEffect(() => {
@@ -81,7 +92,6 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick }) => {
 
     map.current.on('load', () => {
       setIsMapboxReady(true);
-      addEventPins();
     });
 
     return () => {
@@ -111,16 +121,42 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick }) => {
       );
     }
   }, []);
+  useEffect(() => {
+    if (isMapboxReady && events.length > 0) {
+      addEventPins();
+    }
+  }, [events, isMapboxReady]);
+
+  // Helper function to determine event status
+  const getEventStatus = (startUtc: string, endUtc: string): 'live' | 'upcoming' | 'past' => {
+    const now = new Date();
+    const start = new Date(startUtc);
+    const end = new Date(endUtc);
+
+    if (now < start) return 'upcoming';
+    if (now > end) return 'past';
+    return 'live';
+  };
+
+  const clearMarkers = () => {
+    markers.forEach(marker => marker.remove());
+    setMarkers([]);
+  };
 
   const addEventPins = () => {
     if (!map.current) return;
 
-    demoEvents.forEach((event) => {
+    // Clear existing markers
+    clearMarkers();
+    const newMarkers: mapboxgl.Marker[] = [];
+
+    events.forEach((event) => {
+      const status = getEventStatus(event.start_utc, event.end_utc);
       const el = document.createElement('div');
-      el.className = `event-marker ${event.status} ${event.type}`;
+      el.className = `event-marker ${status} event`;
       el.innerHTML = `
-        <div class="marker-inner ${event.status === 'live' ? 'animate-pulse' : ''}">
-          ${event.type === 'event' ? '🎵' : '🏛️'}
+        <div class="marker-inner ${status === 'live' ? 'animate-pulse' : ''}">
+          🎵
         </div>
       `;
       
@@ -132,9 +168,9 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick }) => {
         display: flex;
         align-items: center;
         justify-content: center;
-        background: ${event.status === 'live' ? 'hsl(var(--live))' : 'hsl(var(--primary))'}; 
-        border: 2px solid hsl(var(--background));
-        box-shadow: var(--shadow-glow);
+        background: ${status === 'live' ? '#ef4444' : '#3b82f6'}; 
+        border: 2px solid white;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.3);
         transition: all 0.2s ease;
       `;
 
@@ -150,10 +186,14 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick }) => {
         onPinClick?.(event.id);
       });
 
-      new mapboxgl.Marker(el)
+      const marker = new mapboxgl.Marker(el)
         .setLngLat([event.lng, event.lat])
         .addTo(map.current!);
+      
+      newMarkers.push(marker);
     });
+
+    setMarkers(newMarkers);
   };
 
   return (
@@ -207,7 +247,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick }) => {
           <div className="bg-card/95 backdrop-blur-md border border-border rounded-lg p-3 shadow-xl" style={{ zIndex: 11 }}>
             <div className="flex items-center gap-2 text-sm">
               <Users className="w-4 h-4 text-primary" />
-              <span className="text-muted-foreground">{demoEvents.length} Events in der Nähe</span>
+              <span className="text-muted-foreground">{events.length} Events in der Nähe</span>
             </div>
           </div>
         </div>

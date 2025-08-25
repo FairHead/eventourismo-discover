@@ -8,6 +8,7 @@ import MapPage from "./pages/MapPage";
 import Profile from "./pages/Profile";
 import Auth from "./pages/Auth";
 import BandProfile from "./pages/BandProfile";
+import EventCreate from "./pages/EventCreate";
 import BottomNavigation from "./components/BottomNavigation";
 import ProtectedRoute from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
@@ -35,7 +36,7 @@ const App = () => (
             } />
             <Route path="/create" element={
               <ProtectedRoute>
-                <div className="p-4 pb-20">Event erstellen (coming soon)</div>
+                <EventCreate />
               </ProtectedRoute>
             } />
             <Route path="/favorites" element={
