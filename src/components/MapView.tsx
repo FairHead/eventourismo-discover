@@ -164,11 +164,11 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick }) => {
       {/* UI Overlay - Higher Z-Index */}
       <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 10 }}>
         {/* Search & Filter Bar */}
-        <div className="absolute top-4 left-4 right-4 flex gap-2 pointer-events-auto">
+        <div className="absolute top-4 left-4 right-20 flex gap-2 pointer-events-auto max-w-md">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" style={{ zIndex: 12 }} />
             <Input
-              placeholder="Nach Events, Künstlern, Venues suchen..."
+              placeholder="Suchen..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10 bg-card/95 backdrop-blur-md border-border shadow-xl"
@@ -186,7 +186,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick }) => {
         </div>
 
         {/* Location Button */}
-        <div className="absolute top-20 right-4 pointer-events-auto">
+        <div className="absolute top-4 right-4 pointer-events-auto">
           <Button
             variant="secondary"
             size="icon"
