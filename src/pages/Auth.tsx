@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Music, User, Building2, Shield, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -23,6 +24,16 @@ const Auth = () => {
     password: '',
     confirmPassword: '',
     displayName: '',
+    firstName: '',
+    lastName: '',
+    username: '',
+    phoneNumber: '',
+    dateOfBirth: '',
+    streetAddress: '',
+    city: '',
+    postalCode: '',
+    country: 'Deutschland',
+    bio: '',
     role: 'user' as 'user' | 'artist' | 'promoter' | 'admin'
   });
 
@@ -64,10 +75,10 @@ const Auth = () => {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.email || !formData.password || !formData.displayName) {
+    if (!formData.email || !formData.password || !formData.firstName || !formData.lastName || !formData.username) {
       toast({
         title: "Fehler",
-        description: "Bitte füllen Sie alle Felder aus.",
+        description: "Bitte füllen Sie alle Pflichtfelder aus.",
         variant: "destructive",
       });
       return;
@@ -93,7 +104,17 @@ const Auth = () => {
 
     setIsLoading(true);
     const { error } = await signUp(formData.email, formData.password, {
-      display_name: formData.displayName,
+      display_name: `${formData.firstName} ${formData.lastName}`,
+      first_name: formData.firstName,
+      last_name: formData.lastName,
+      username: formData.username,
+      phone_number: formData.phoneNumber,
+      date_of_birth: formData.dateOfBirth,
+      street_address: formData.streetAddress,
+      city: formData.city,
+      postal_code: formData.postalCode,
+      country: formData.country,
+      bio: formData.bio,
       role: formData.role
     });
     
@@ -217,15 +238,44 @@ const Auth = () => {
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSignUp} className="space-y-4">
+                  {/* Personal Information */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="firstName">Vorname *</Label>
+                      <Input
+                        id="firstName"
+                        type="text"
+                        placeholder="Max"
+                        value={formData.firstName}
+                        onChange={(e) => handleInputChange('firstName', e.target.value)}
+                        className="bg-input border-border"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="lastName">Nachname *</Label>
+                      <Input
+                        id="lastName"
+                        type="text"
+                        placeholder="Mustermann"
+                        value={formData.lastName}
+                        onChange={(e) => handleInputChange('lastName', e.target.value)}
+                        className="bg-input border-border"
+                        required
+                      />
+                    </div>
+                  </div>
+                  
                   <div className="space-y-2">
-                    <Label htmlFor="displayName">Anzeigename</Label>
+                    <Label htmlFor="username">Benutzername *</Label>
                     <Input
-                      id="displayName"
+                      id="username"
                       type="text"
-                      placeholder="Ihr Name"
-                      value={formData.displayName}
-                      onChange={(e) => handleInputChange('displayName', e.target.value)}
+                      placeholder="max_mustermann"
+                      value={formData.username}
+                      onChange={(e) => handleInputChange('username', e.target.value)}
                       className="bg-input border-border"
+                      required
                     />
                   </div>
                   <div className="space-y-2">
@@ -257,7 +307,7 @@ const Auth = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">Passwort bestätigen</Label>
+                    <Label htmlFor="confirmPassword">Passwort bestätigen *</Label>
                     <Input
                       id="confirmPassword"
                       type="password"
@@ -265,6 +315,97 @@ const Auth = () => {
                       value={formData.confirmPassword}
                       onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
                       className="bg-input border-border"
+                      required
+                    />
+                  </div>
+
+                  {/* Contact Information */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="phoneNumber">Telefonnummer</Label>
+                      <Input
+                        id="phoneNumber"
+                        type="tel"
+                        placeholder="+49 123 456789"
+                        value={formData.phoneNumber}
+                        onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
+                        className="bg-input border-border"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="dateOfBirth">Geburtsdatum</Label>
+                      <Input
+                        id="dateOfBirth"
+                        type="date"
+                        value={formData.dateOfBirth}
+                        onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
+                        className="bg-input border-border"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Address Information */}
+                  <div className="space-y-2">
+                    <Label htmlFor="streetAddress">Straße und Hausnummer</Label>
+                    <Input
+                      id="streetAddress"
+                      type="text"
+                      placeholder="Musterstraße 123"
+                      value={formData.streetAddress}
+                      onChange={(e) => handleInputChange('streetAddress', e.target.value)}
+                      className="bg-input border-border"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="postalCode">PLZ</Label>
+                      <Input
+                        id="postalCode"
+                        type="text"
+                        placeholder="12345"
+                        value={formData.postalCode}
+                        onChange={(e) => handleInputChange('postalCode', e.target.value)}
+                        className="bg-input border-border"
+                      />
+                    </div>
+                    <div className="space-y-2 col-span-2">
+                      <Label htmlFor="city">Stadt</Label>
+                      <Input
+                        id="city"
+                        type="text"
+                        placeholder="Berlin"
+                        value={formData.city}
+                        onChange={(e) => handleInputChange('city', e.target.value)}
+                        className="bg-input border-border"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="country">Land</Label>
+                    <Select value={formData.country} onValueChange={(value) => handleInputChange('country', value)}>
+                      <SelectTrigger className="bg-input border-border">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Deutschland">Deutschland</SelectItem>
+                        <SelectItem value="Österreich">Österreich</SelectItem>
+                        <SelectItem value="Schweiz">Schweiz</SelectItem>
+                        <SelectItem value="Andere">Andere</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="bio">Über mich (optional)</Label>
+                    <Textarea
+                      id="bio"
+                      placeholder="Erzählen Sie etwas über sich..."
+                      value={formData.bio}
+                      onChange={(e) => handleInputChange('bio', e.target.value)}
+                      className="bg-input border-border min-h-[80px]"
+                      rows={3}
                     />
                   </div>
                   <div className="space-y-3">

@@ -279,33 +279,63 @@ export type Database = {
       users: {
         Row: {
           avatar_url: string | null
+          bio: string | null
+          city: string | null
+          country: string | null
           created_at: string
+          date_of_birth: string | null
           display_name: string | null
           email: string
+          first_name: string | null
           id: string
+          last_name: string | null
+          phone_number: string | null
+          postal_code: string | null
           preferred_genres: string[] | null
           role: Database["public"]["Enums"]["user_role"]
+          street_address: string | null
           updated_at: string
+          username: string | null
         }
         Insert: {
           avatar_url?: string | null
+          bio?: string | null
+          city?: string | null
+          country?: string | null
           created_at?: string
+          date_of_birth?: string | null
           display_name?: string | null
           email: string
+          first_name?: string | null
           id: string
+          last_name?: string | null
+          phone_number?: string | null
+          postal_code?: string | null
           preferred_genres?: string[] | null
           role?: Database["public"]["Enums"]["user_role"]
+          street_address?: string | null
           updated_at?: string
+          username?: string | null
         }
         Update: {
           avatar_url?: string | null
+          bio?: string | null
+          city?: string | null
+          country?: string | null
           created_at?: string
+          date_of_birth?: string | null
           display_name?: string | null
           email?: string
+          first_name?: string | null
           id?: string
+          last_name?: string | null
+          phone_number?: string | null
+          postal_code?: string | null
           preferred_genres?: string[] | null
           role?: Database["public"]["Enums"]["user_role"]
+          street_address?: string | null
           updated_at?: string
+          username?: string | null
         }
         Relationships: []
       }

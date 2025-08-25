@@ -105,12 +105,15 @@ const Profile: React.FC = () => {
               <User className="w-8 h-8 text-primary-foreground" />
             </div>
             <div className="flex-1">
-              <h2 className="text-xl font-semibold">{userProfile?.display_name || user?.email}</h2>
-              <p className="text-muted-foreground">{getRoleDisplayName(userProfile?.role)} aus Berlin</p>
+              <h2 className="text-xl font-semibold">{userProfile?.display_name || `${userProfile?.first_name} ${userProfile?.last_name}` || user?.email}</h2>
+              <p className="text-muted-foreground">{getRoleDisplayName(userProfile?.role)} {userProfile?.city && `aus ${userProfile?.city}`}</p>
               <div className="flex items-center gap-1 mt-1 text-sm text-muted-foreground">
                 <MapPin className="w-3 h-3" />
-                <span>Berlin, Deutschland</span>
+                <span>{userProfile?.city ? `${userProfile.city}, ${userProfile.country || 'Deutschland'}` : 'Standort nicht angegeben'}</span>
               </div>
+              {userProfile?.bio && (
+                <p className="text-sm text-muted-foreground mt-2 italic">{userProfile.bio}</p>
+              )}
             </div>
           </div>
         </CardContent>
@@ -138,7 +141,55 @@ const Profile: React.FC = () => {
         </Card>
       </div>
 
-      {/* Preferred Genres */}
+      {/* User Details */}
+      {userProfile && (
+        <Card className="border-border">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <User className="w-5 h-5 text-primary" />
+              Persönliche Informationen
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-muted-foreground">Benutzername:</span>
+                <p className="font-medium">{userProfile.username || 'Nicht angegeben'}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">E-Mail:</span>
+                <p className="font-medium">{user?.email}</p>
+              </div>
+              {userProfile.phone_number && (
+                <div>
+                  <span className="text-muted-foreground">Telefon:</span>
+                  <p className="font-medium">{userProfile.phone_number}</p>
+                </div>
+              )}
+              {userProfile.date_of_birth && (
+                <div>
+                  <span className="text-muted-foreground">Geburtsdatum:</span>
+                  <p className="font-medium">{new Date(userProfile.date_of_birth).toLocaleDateString('de-DE')}</p>
+                </div>
+              )}
+            </div>
+            {(userProfile.street_address || userProfile.postal_code) && (
+              <div className="pt-2 border-t border-border">
+                <span className="text-muted-foreground text-sm">Adresse:</span>
+                <div className="mt-1">
+                  {userProfile.street_address && <p className="text-sm">{userProfile.street_address}</p>}
+                  {(userProfile.postal_code || userProfile.city) && (
+                    <p className="text-sm">{userProfile.postal_code} {userProfile.city}</p>
+                  )}
+                  {userProfile.country && userProfile.country !== 'Deutschland' && (
+                    <p className="text-sm">{userProfile.country}</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
       <Card className="border-border">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-lg">
@@ -148,11 +199,19 @@ const Profile: React.FC = () => {
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
-            {preferredGenres.map((genre) => (
-              <Badge key={genre} variant="secondary" className="bg-primary/10 text-primary">
-                {genre}
-              </Badge>
-            ))}
+            {(userProfile?.preferred_genres && userProfile.preferred_genres.length > 0) ? (
+              userProfile.preferred_genres.map((genre: string) => (
+                <Badge key={genre} variant="secondary" className="bg-primary/10 text-primary">
+                  {genre}
+                </Badge>
+              ))
+            ) : (
+              preferredGenres.map((genre) => (
+                <Badge key={genre} variant="secondary" className="bg-primary/10 text-primary">
+                  {genre}
+                </Badge>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>
