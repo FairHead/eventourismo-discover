@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import BandAvatarUpload from './BandAvatarUpload';
 import { 
   Music, 
   Instagram, 
@@ -49,6 +50,7 @@ const BandProfileModal: React.FC<BandProfileModalProps> = ({
   const [country, setCountry] = useState('Deutschland');
   const [formationYear, setFormationYear] = useState('');
   const [websiteUrl, setWebsiteUrl] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState('');
   
   // Social links
   const [instagramUrl, setInstagramUrl] = useState('');
@@ -70,6 +72,7 @@ const BandProfileModal: React.FC<BandProfileModalProps> = ({
       setCountry(existingBand.country || 'Deutschland');
       setFormationYear(existingBand.formation_year?.toString() || '');
       setWebsiteUrl(existingBand.website_url || '');
+      setAvatarUrl(existingBand.avatar_url || '');
       setSelectedGenres(existingBand.genres || []);
       
       // Load social links
@@ -128,6 +131,7 @@ const BandProfileModal: React.FC<BandProfileModalProps> = ({
         country: country || 'Deutschland',
         formation_year: formationYear ? parseInt(formationYear) : null,
         website_url: websiteUrl.trim() || null,
+        avatar_url: avatarUrl || null,
         genres: selectedGenres,
         social_links: socialLinks,
         created_by: user.id,
@@ -200,6 +204,21 @@ const BandProfileModal: React.FC<BandProfileModalProps> = ({
         </DialogHeader>
 
         <div className="space-y-6">
+          {/* Profilbild */}
+          <div className="space-y-4">
+            <h3 className="font-semibold">Profilbild</h3>
+            <div className="flex items-center gap-4">
+              <BandAvatarUpload
+                currentAvatarUrl={avatarUrl}
+                bandName={bandName}
+                onAvatarUpdate={setAvatarUrl}
+              />
+              <div className="text-sm text-muted-foreground">
+                Klicken Sie auf das Bild, um ein Profilbild hochzuladen
+              </div>
+            </div>
+          </div>
+
           {/* Grundinformationen */}
           <div className="space-y-4">
             <h3 className="font-semibold">Grundinformationen</h3>
