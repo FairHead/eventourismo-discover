@@ -365,12 +365,12 @@ const EventCreate = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <Select value={formData.band_id} onValueChange={(value) => handleInputChange('band_id', value)}>
+            <Select value={formData.band_id} onValueChange={(value) => handleInputChange('band_id', value === 'none' ? '' : value)}>
               <SelectTrigger>
                 <SelectValue placeholder="Band auswählen (optional)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Keine Band</SelectItem>
+                <SelectItem value="none">Keine Band</SelectItem>
                 {bands.map(band => (
                   <SelectItem key={band.id} value={band.id}>
                     {band.name}
