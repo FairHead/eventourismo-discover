@@ -13,6 +13,11 @@ import { cn } from '@/lib/utils';
 const BottomNavigation: React.FC = () => {
   const location = useLocation();
 
+  // Hide navigation on auth page
+  if (location.pathname === '/auth') {
+    return null;
+  }
+
   const navItems = [
     { path: '/', icon: Map, label: 'Karte' },
     { path: '/search', icon: Search, label: 'Suchen' },

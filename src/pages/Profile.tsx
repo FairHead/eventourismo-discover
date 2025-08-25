@@ -1,8 +1,11 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { useToast } from '@/hooks/use-toast';
 import { 
   User, 
   Settings, 
@@ -17,12 +20,80 @@ import {
 } from 'lucide-react';
 
 const Profile: React.FC = () => {
+  const { user, signOut } = useAuth();
+  const { toast } = useToast();
+  const [userProfile, setUserProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
   const preferredGenres = ['Electronic', 'Jazz', 'Rock', 'Classical'];
   const stats = {
     eventsAttended: 42,
     favoriteVenues: 8,
     reviewsWritten: 15
   };
+
+  useEffect(() => {
+    if (user) {
+      fetchUserProfile();
+    }
+  }, [user]);
+
+  const fetchUserProfile = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', user?.id)
+        .single();
+
+      if (error) throw error;
+      setUserProfile(data);
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      toast({
+        title: "Erfolgreich abgemeldet",
+        description: "Sie wurden erfolgreich abgemeldet.",
+      });
+    } catch (error) {
+      toast({
+        title: "Fehler beim Abmelden",
+        description: "Ein Fehler ist aufgetreten.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const getRoleDisplayName = (role: string) => {
+    switch (role) {
+      case 'artist': return 'Künstler';
+      case 'promoter': return 'Veranstalter';
+      case 'admin': return 'Administrator';
+      default: return 'Event-Besucher';
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="pb-20 px-4 py-6 space-y-6 min-h-screen bg-background">
+        <div className="animate-pulse space-y-6">
+          <div className="h-32 bg-muted rounded-lg"></div>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="h-20 bg-muted rounded-lg"></div>
+            <div className="h-20 bg-muted rounded-lg"></div>
+            <div className="h-20 bg-muted rounded-lg"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="pb-20 px-4 py-6 space-y-6 min-h-screen bg-background">
@@ -34,8 +105,8 @@ const Profile: React.FC = () => {
               <User className="w-8 h-8 text-primary-foreground" />
             </div>
             <div className="flex-1">
-              <h2 className="text-xl font-semibold">Max Mustermann</h2>
-              <p className="text-muted-foreground">Musikliebhaber aus Berlin</p>
+              <h2 className="text-xl font-semibold">{userProfile?.display_name || user?.email}</h2>
+              <p className="text-muted-foreground">{getRoleDisplayName(userProfile?.role)} aus Berlin</p>
               <div className="flex items-center gap-1 mt-1 text-sm text-muted-foreground">
                 <MapPin className="w-3 h-3" />
                 <span>Berlin, Deutschland</span>
@@ -138,7 +209,11 @@ const Profile: React.FC = () => {
       {/* Logout */}
       <Card className="border-destructive/20">
         <CardContent className="p-4">
-          <Button variant="ghost" className="w-full justify-start gap-3 text-destructive hover:bg-destructive/10">
+          <Button 
+            variant="ghost" 
+            className="w-full justify-start gap-3 text-destructive hover:bg-destructive/10"
+            onClick={handleLogout}
+          >
             <LogOut className="w-5 h-5" />
             Abmelden
           </Button>
