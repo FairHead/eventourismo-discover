@@ -48,11 +48,23 @@ const EventCreateModal: React.FC<EventCreateModalProps> = ({ isOpen, onClose, on
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!isOpen || !mapContainer.current) return;
+    if (!isOpen) return;
 
     let mounted = true;
 
     const initializeMap = async () => {
+      // Wait for container to be available and have dimensions
+      if (!mapContainer.current) {
+        console.log('Map container not ready');
+        return;
+      }
+
+      const containerRect = mapContainer.current.getBoundingClientRect();
+      if (containerRect.width === 0 || containerRect.height === 0) {
+        console.log('Map container has no dimensions:', containerRect);
+        return;
+      }
+
       try {
         const { data, error } = await supabase.functions.invoke('get-mapbox-token');
         if (error) throw error;
@@ -60,6 +72,7 @@ const EventCreateModal: React.FC<EventCreateModalProps> = ({ isOpen, onClose, on
         if (!mounted) return;
         
         mapboxgl.accessToken = data.token;
+        console.log('Mapbox token set, initializing map...');
 
         // Get user's current location
         const getCurrentPosition = (): Promise<GeolocationPosition> => {
@@ -182,10 +195,23 @@ const EventCreateModal: React.FC<EventCreateModalProps> = ({ isOpen, onClose, on
       }
     };
 
-    // Delay initialization to ensure modal is fully rendered
-    const timer = setTimeout(() => {
-      initializeMap();
-    }, 500);
+    // Try multiple times to initialize the map
+    let attempts = 0;
+    const maxAttempts = 5;
+    
+    const tryInitializeMap = () => {
+      attempts++;
+      initializeMap().then(() => {
+        // Map initialized successfully
+      }).catch((error) => {
+        console.log(`Map initialization attempt ${attempts} failed:`, error);
+        if (attempts < maxAttempts) {
+          setTimeout(tryInitializeMap, 300);
+        }
+      });
+    };
+
+    const timer = setTimeout(tryInitializeMap, 300);
 
     return () => {
       mounted = false;
