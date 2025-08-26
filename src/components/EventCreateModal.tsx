@@ -360,10 +360,9 @@ const EventCreateModal: React.FC<EventCreateModalProps> = ({ isOpen, onClose, on
 
   const eventTypes = [
     { value: 'concert', label: 'Konzert' },
-    { value: 'festival', label: 'Festival' },
-    { value: 'jam_session', label: 'Jam Session' },
-    { value: 'open_mic', label: 'Open Mic' },
-    { value: 'workshop', label: 'Workshop' },
+    { value: 'street', label: 'Straßenmusik' },
+    { value: 'theater', label: 'Theater' },
+    { value: 'club', label: 'Club' },
     { value: 'other', label: 'Sonstiges' }
   ];
 
