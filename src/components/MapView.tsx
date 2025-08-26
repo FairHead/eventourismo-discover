@@ -170,9 +170,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       el.style.boxShadow = '0 2px 10px rgba(0,0,0,0.3)';
       el.style.transition = 'transform 0.2s ease';
       el.style.transformOrigin = 'center center';
-      el.style.position = 'absolute';
-      el.style.top = '0';
-      el.style.left = '0';
+      el.style.willChange = 'transform';
       el.style.zIndex = '100';
       
       // Set background color based on status
