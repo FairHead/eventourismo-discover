@@ -46,10 +46,6 @@ const MapPage: React.FC = () => {
           .from('events')
           .select(`
             *,
-            bands (
-              name,
-              avatar_url
-            ),
             users (
               display_name,
               username
@@ -113,10 +109,6 @@ const MapPage: React.FC = () => {
           .from('events')
           .select(`
             *,
-            bands (
-              name,
-              avatar_url
-            ),
             users (
               display_name,
               username
