@@ -155,13 +155,9 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     events.forEach((event) => {
       const status = getEventStatus(event.start_utc, event.end_utc);
       const el = document.createElement('div');
-      el.className = `event-marker ${status} event`;
-      el.innerHTML = `
-        <div class="marker-inner ${status === 'live' ? 'animate-pulse' : ''}">
-          🎵
-        </div>
-      `;
+      el.className = `event-marker event-marker-${status}`;
       
+      // Set proper positioning and styling
       el.style.cssText = `
         width: 32px;
         height: 32px;
@@ -170,25 +166,49 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
         display: flex;
         align-items: center;
         justify-content: center;
-        background: ${status === 'live' ? '#ef4444' : '#3b82f6'}; 
+        background: ${status === 'live' ? '#ef4444' : status === 'upcoming' ? '#3b82f6' : '#6b7280'}; 
         border: 2px solid white;
         box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-        transition: all 0.2s ease;
+        transition: transform 0.2s ease;
+        transform-origin: center center;
+        position: relative;
+        font-size: 16px;
+        user-select: none;
+        z-index: 100;
       `;
 
-      el.addEventListener('mouseenter', () => {
+      // Add emoji content
+      el.textContent = '🎵';
+
+      // Add pulse animation for live events
+      if (status === 'live') {
+        el.style.animation = 'pulse 2s infinite';
+      }
+
+      // Hover effects with proper positioning
+      el.addEventListener('mouseenter', (e) => {
+        e.stopPropagation();
         el.style.transform = 'scale(1.2)';
+        el.style.zIndex = '200';
       });
 
-      el.addEventListener('mouseleave', () => {
+      el.addEventListener('mouseleave', (e) => {
+        e.stopPropagation();
         el.style.transform = 'scale(1)';
+        el.style.zIndex = '100';
       });
 
-      el.addEventListener('click', () => {
+      // Click handler
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
         onPinClick?.(event.id);
       });
 
-      const marker = new mapboxgl.Marker(el)
+      // Create marker with proper anchor
+      const marker = new mapboxgl.Marker({
+        element: el,
+        anchor: 'center'
+      })
         .setLngLat([event.lng, event.lat])
         .addTo(map.current!);
       
