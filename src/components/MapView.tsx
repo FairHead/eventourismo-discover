@@ -48,7 +48,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
   const [mapboxToken, setMapboxToken] = useState<string | null>(null);
   const [tokenError, setTokenError] = useState<string | null>(null);
   const [markers, setMarkers] = useState<mapboxgl.Marker[]>([]);
-  const [activePopup, setActivePopup] = useState<mapboxgl.Popup | null>(null);
+  // Removed Mapbox popup state to avoid duplicate UI
 
   // Fetch Mapbox token from Edge Function
   useEffect(() => {
@@ -203,34 +203,10 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
         el.style.zIndex = '100';
       });
 
-      // Click handler: open popup and notify parent
+      // Click handler: only open side sheet, no Mapbox popup to avoid duplicate UI
       el.addEventListener('click', (e) => {
         e.stopPropagation();
         e.preventDefault();
-
-        // Close previous popup if any
-        if (activePopup) {
-          activePopup.remove();
-        }
-
-        const content = `
-          <div style="min-width:220px">
-            <div style="font-weight:600;margin-bottom:4px">${event.title}</div>
-            <div style="font-size:12px;opacity:.8;margin-bottom:6px">
-              ${new Date(event.start_utc).toLocaleString()} - ${new Date(event.end_utc).toLocaleString()}
-            </div>
-            ${event.description ? `<div style="font-size:13px;line-height:1.3">${event.description.substring(0,140)}${event.description.length>140?'…':''}</div>` : ''}
-          </div>
-        `;
-
-        const popup = new mapboxgl.Popup({ offset: 16, closeOnClick: true, anchor: 'top' })
-          .setLngLat([event.lng, event.lat])
-          .setHTML(content)
-          .addTo(map.current!);
-
-        popup.on('close', () => setActivePopup(null));
-        setActivePopup(popup);
-
         onPinClick?.(event.id);
       });
 
