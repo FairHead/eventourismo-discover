@@ -48,6 +48,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
   const [mapboxToken, setMapboxToken] = useState<string | null>(null);
   const [tokenError, setTokenError] = useState<string | null>(null);
   const [markers, setMarkers] = useState<mapboxgl.Marker[]>([]);
+  const [activePopup, setActivePopup] = useState<mapboxgl.Popup | null>(null);
 
   // Fetch Mapbox token from Edge Function
   useEffect(() => {
@@ -155,55 +156,81 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     events.forEach((event) => {
       const status = getEventStatus(event.start_utc, event.end_utc);
       
-      // Create marker element with fixed positioning
+      // Create marker with inner content to avoid overriding Mapbox transforms
       const el = document.createElement('div');
-      el.style.width = '32px';
-      el.style.height = '32px';
-      el.style.borderRadius = '50%';
+      el.setAttribute('data-event-id', event.id);
       el.style.cursor = 'pointer';
-      el.style.display = 'flex';
-      el.style.alignItems = 'center';
-      el.style.justifyContent = 'center';
-      el.style.fontSize = '16px';
-      el.style.userSelect = 'none';
-      el.style.border = '2px solid white';
-      el.style.boxShadow = '0 2px 10px rgba(0,0,0,0.3)';
-      el.style.transition = 'transform 0.2s ease';
-      el.style.transformOrigin = 'center center';
-      el.style.willChange = 'transform';
       el.style.zIndex = '100';
-      
+
+      const inner = document.createElement('div');
+      inner.style.width = '32px';
+      inner.style.height = '32px';
+      inner.style.borderRadius = '50%';
+      inner.style.display = 'flex';
+      inner.style.alignItems = 'center';
+      inner.style.justifyContent = 'center';
+      inner.style.fontSize = '16px';
+      inner.style.userSelect = 'none';
+      inner.style.border = '2px solid white';
+      inner.style.boxShadow = '0 2px 10px rgba(0,0,0,0.3)';
+      inner.style.transition = 'transform 0.2s ease';
+      inner.style.transformOrigin = 'center center';
+      inner.style.willChange = 'transform';
+      inner.textContent = '🎵';
+
       // Set background color based on status
       if (status === 'live') {
-        el.style.backgroundColor = '#ef4444';
-        el.style.animation = 'pulse 2s infinite';
+        inner.style.backgroundColor = '#ef4444';
+        inner.style.animation = 'pulse 2s infinite';
       } else if (status === 'upcoming') {
-        el.style.backgroundColor = '#3b82f6';
+        inner.style.backgroundColor = '#3b82f6';
       } else {
-        el.style.backgroundColor = '#6b7280';
+        inner.style.backgroundColor = '#6b7280';
       }
 
-      // Add emoji content
-      el.textContent = '🎵';
-      el.setAttribute('data-event-id', event.id);
+      el.appendChild(inner);
 
-      // Hover effects that don't affect positioning
+      // Hover effects on inner content only (do NOT modify outer transform)
       el.addEventListener('mouseenter', (e) => {
         e.stopPropagation();
-        el.style.transform = 'scale(1.2)';
+        inner.style.transform = 'scale(1.2)';
         el.style.zIndex = '200';
       });
 
       el.addEventListener('mouseleave', (e) => {
         e.stopPropagation();
-        el.style.transform = 'scale(1)';
+        inner.style.transform = 'scale(1)';
         el.style.zIndex = '100';
       });
 
-      // Click handler
+      // Click handler: open popup and notify parent
       el.addEventListener('click', (e) => {
         e.stopPropagation();
         e.preventDefault();
+
+        // Close previous popup if any
+        if (activePopup) {
+          activePopup.remove();
+        }
+
+        const content = `
+          <div style="min-width:220px">
+            <div style="font-weight:600;margin-bottom:4px">${event.title}</div>
+            <div style="font-size:12px;opacity:.8;margin-bottom:6px">
+              ${new Date(event.start_utc).toLocaleString()} - ${new Date(event.end_utc).toLocaleString()}
+            </div>
+            ${event.description ? `<div style="font-size:13px;line-height:1.3">${event.description.substring(0,140)}${event.description.length>140?'…':''}</div>` : ''}
+          </div>
+        `;
+
+        const popup = new mapboxgl.Popup({ offset: 16, closeOnClick: true, anchor: 'top' })
+          .setLngLat([event.lng, event.lat])
+          .setHTML(content)
+          .addTo(map.current!);
+
+        popup.on('close', () => setActivePopup(null));
+        setActivePopup(popup);
+
         onPinClick?.(event.id);
       });
 
@@ -215,6 +242,8 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       })
         .setLngLat([event.lng, event.lat])
         .addTo(map.current!);
+      
+      newMarkers.push(marker);
       
       newMarkers.push(marker);
     });
