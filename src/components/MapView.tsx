@@ -154,38 +154,42 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
 
     events.forEach((event) => {
       const status = getEventStatus(event.start_utc, event.end_utc);
-      const el = document.createElement('div');
-      el.className = `event-marker event-marker-${status}`;
       
-      // Set proper positioning and styling
-      el.style.cssText = `
-        width: 32px;
-        height: 32px;
-        border-radius: 50%;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: ${status === 'live' ? '#ef4444' : status === 'upcoming' ? '#3b82f6' : '#6b7280'}; 
-        border: 2px solid white;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-        transition: transform 0.2s ease;
-        transform-origin: center center;
-        position: relative;
-        font-size: 16px;
-        user-select: none;
-        z-index: 100;
-      `;
+      // Create marker element with fixed positioning
+      const el = document.createElement('div');
+      el.style.width = '32px';
+      el.style.height = '32px';
+      el.style.borderRadius = '50%';
+      el.style.cursor = 'pointer';
+      el.style.display = 'flex';
+      el.style.alignItems = 'center';
+      el.style.justifyContent = 'center';
+      el.style.fontSize = '16px';
+      el.style.userSelect = 'none';
+      el.style.border = '2px solid white';
+      el.style.boxShadow = '0 2px 10px rgba(0,0,0,0.3)';
+      el.style.transition = 'transform 0.2s ease';
+      el.style.transformOrigin = 'center center';
+      el.style.position = 'absolute';
+      el.style.top = '0';
+      el.style.left = '0';
+      el.style.zIndex = '100';
+      
+      // Set background color based on status
+      if (status === 'live') {
+        el.style.backgroundColor = '#ef4444';
+        el.style.animation = 'pulse 2s infinite';
+      } else if (status === 'upcoming') {
+        el.style.backgroundColor = '#3b82f6';
+      } else {
+        el.style.backgroundColor = '#6b7280';
+      }
 
       // Add emoji content
       el.textContent = '🎵';
+      el.setAttribute('data-event-id', event.id);
 
-      // Add pulse animation for live events
-      if (status === 'live') {
-        el.style.animation = 'pulse 2s infinite';
-      }
-
-      // Hover effects with proper positioning
+      // Hover effects that don't affect positioning
       el.addEventListener('mouseenter', (e) => {
         e.stopPropagation();
         el.style.transform = 'scale(1.2)';
@@ -201,13 +205,15 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       // Click handler
       el.addEventListener('click', (e) => {
         e.stopPropagation();
+        e.preventDefault();
         onPinClick?.(event.id);
       });
 
-      // Create marker with proper anchor
+      // Create marker with center anchor to prevent positioning issues
       const marker = new mapboxgl.Marker({
         element: el,
-        anchor: 'center'
+        anchor: 'center',
+        offset: [0, 0]
       })
         .setLngLat([event.lng, event.lat])
         .addTo(map.current!);
