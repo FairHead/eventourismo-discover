@@ -222,75 +222,83 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
   }, []);
 
   const createUserLocationMarker = (coords: [number, number]) => {
+    // Ensure map is fully initialized and container exists
     if (!map.current) return;
+    try {
+      const container = (map.current as any).getContainer?.();
+      const canvas = (map.current as any).getCanvas?.();
+      if (!container || !canvas) {
+        console.warn('Map container/canvas not ready, skipping user marker creation');
+        return;
+      }
 
-    // Remove existing user marker
-    if (userMarkerRef.current) {
-      userMarkerRef.current.remove();
+      // Remove existing user marker
+      if (userMarkerRef.current) {
+        userMarkerRef.current.remove();
+      }
+
+      // Create user location marker element
+      const el = document.createElement('div');
+      el.style.width = '20px';
+      el.style.height = '20px';
+      el.style.position = 'relative';
+      el.style.zIndex = '1000';
+
+      // User dot (inner circle)
+      const userDot = document.createElement('div');
+      userDot.style.width = '12px';
+      userDot.style.height = '12px';
+      userDot.style.backgroundColor = '#007AFF';
+      userDot.style.borderRadius = '50%';
+      userDot.style.border = '2px solid white';
+      userDot.style.position = 'absolute';
+      userDot.style.top = '50%';
+      userDot.style.left = '50%';
+      userDot.style.transform = 'translate(-50%, -50%)';
+      userDot.style.boxShadow = '0 0 8px rgba(0, 122, 255, 0.6)';
+      userDot.style.zIndex = '1002';
+
+      // Accuracy circle (outer ring)
+      const accuracyRing = document.createElement('div');
+      accuracyRing.style.width = '40px';
+      accuracyRing.style.height = '40px';
+      accuracyRing.style.border = '2px solid rgba(0, 122, 255, 0.3)';
+      accuracyRing.style.borderRadius = '50%';
+      accuracyRing.style.position = 'absolute';
+      accuracyRing.style.top = '50%';
+      accuracyRing.style.left = '50%';
+      accuracyRing.style.transform = 'translate(-50%, -50%)';
+      accuracyRing.style.backgroundColor = 'rgba(0, 122, 255, 0.1)';
+      accuracyRing.style.zIndex = '1001';
+
+      // Direction arrow
+      const arrow = document.createElement('div');
+      arrow.className = 'user-direction-arrow';
+      arrow.style.width = '0';
+      arrow.style.height = '0';
+      arrow.style.borderLeft = '4px solid transparent';
+      arrow.style.borderRight = '4px solid transparent';
+      arrow.style.borderBottom = '12px solid #007AFF';
+      arrow.style.position = 'absolute';
+      arrow.style.top = '-6px';
+      arrow.style.left = '50%';
+      arrow.style.transform = 'translateX(-50%) rotate(0deg)';
+      arrow.style.transformOrigin = '50% 18px';
+      arrow.style.zIndex = '1003';
+      arrow.style.transition = 'transform 0.3s ease';
+
+      el.appendChild(accuracyRing);
+      el.appendChild(userDot);
+      el.appendChild(arrow);
+
+      const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
+        .setLngLat(coords)
+        .addTo(map.current!);
+
+      userMarkerRef.current = marker;
+    } catch (err) {
+      console.error('Failed to create user location marker:', err);
     }
-
-    // Create user location marker element
-    const el = document.createElement('div');
-    el.style.width = '20px';
-    el.style.height = '20px';
-    el.style.position = 'relative';
-    el.style.zIndex = '1000';
-
-    // User dot (inner circle)
-    const userDot = document.createElement('div');
-    userDot.style.width = '12px';
-    userDot.style.height = '12px';
-    userDot.style.backgroundColor = '#007AFF';
-    userDot.style.borderRadius = '50%';
-    userDot.style.border = '2px solid white';
-    userDot.style.position = 'absolute';
-    userDot.style.top = '50%';
-    userDot.style.left = '50%';
-    userDot.style.transform = 'translate(-50%, -50%)';
-    userDot.style.boxShadow = '0 0 8px rgba(0, 122, 255, 0.6)';
-    userDot.style.zIndex = '1002';
-
-    // Accuracy circle (outer ring)
-    const accuracyRing = document.createElement('div');
-    accuracyRing.style.width = '40px';
-    accuracyRing.style.height = '40px';
-    accuracyRing.style.border = '2px solid rgba(0, 122, 255, 0.3)';
-    accuracyRing.style.borderRadius = '50%';
-    accuracyRing.style.position = 'absolute';
-    accuracyRing.style.top = '50%';
-    accuracyRing.style.left = '50%';
-    accuracyRing.style.transform = 'translate(-50%, -50%)';
-    accuracyRing.style.backgroundColor = 'rgba(0, 122, 255, 0.1)';
-    accuracyRing.style.zIndex = '1001';
-
-    // Direction arrow
-    const arrow = document.createElement('div');
-    arrow.className = 'user-direction-arrow';
-    arrow.style.width = '0';
-    arrow.style.height = '0';
-    arrow.style.borderLeft = '4px solid transparent';
-    arrow.style.borderRight = '4px solid transparent';
-    arrow.style.borderBottom = '12px solid #007AFF';
-    arrow.style.position = 'absolute';
-    arrow.style.top = '-6px';
-    arrow.style.left = '50%';
-    arrow.style.transform = 'translateX(-50%) rotate(0deg)';
-    arrow.style.transformOrigin = '50% 18px';
-    arrow.style.zIndex = '1003';
-    arrow.style.transition = 'transform 0.3s ease';
-
-    el.appendChild(accuracyRing);
-    el.appendChild(userDot);
-    el.appendChild(arrow);
-
-    const marker = new mapboxgl.Marker({
-      element: el,
-      anchor: 'center'
-    })
-      .setLngLat(coords)
-      .addTo(map.current);
-
-    userMarkerRef.current = marker;
   };
   // Route calculation and display
   const calculateRoute = async (
