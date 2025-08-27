@@ -146,7 +146,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
   }, [events, isMapboxReady]);
 
   // Helper function to determine event status
-  const getEventStatus = (startUtc: string, endUtc: string): 'live' | 'today' | 'upcoming' | 'finished' | 'past' => {
+  const getEventStatus = (startUtc: string, endUtc: string): 'live' | 'ending_soon' | 'today' | 'upcoming' | 'finished' | 'past' => {
     const now = new Date();
     const start = new Date(startUtc);
     const end = new Date(endUtc);
@@ -156,7 +156,14 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     tomorrow.setDate(tomorrow.getDate() + 1);
 
     // Check if event is currently happening
-    if (now >= start && now <= end) return 'live';
+    if (now >= start && now <= end) {
+      // Check if event ends within 30 minutes
+      const minutesToEnd = Math.floor((end.getTime() - now.getTime()) / (1000 * 60));
+      if (minutesToEnd <= 30) {
+        return 'ending_soon';
+      }
+      return 'live';
+    }
     
     // Check if event finished but less than 3 hours ago
     const threeHoursAfterEnd = new Date(end.getTime() + (3 * 60 * 60 * 1000)); // 3 hours in milliseconds
@@ -228,6 +235,9 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       if (status === 'live') {
         inner.style.border = '3px solid #22c55e'; // Green border
         inner.style.animation = 'eventPulse 2s infinite';
+      } else if (status === 'ending_soon') {
+        inner.style.border = '3px solid #f97316'; // Orange border for ending soon
+        inner.style.animation = 'eventPulseOrange 2s infinite';
       } else if (status === 'finished') {
         inner.style.border = '3px solid #ef4444'; // Red border for finished events
         inner.style.animation = 'eventPulseRed 2s infinite';
@@ -355,6 +365,19 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
           }
           100% {
             box-shadow: 0 2px 10px rgba(0,0,0,0.3), 0 0 0 0 rgba(34, 197, 94, 0);
+          }
+        }
+        
+        @keyframes eventPulseOrange {
+          0% {
+            border-color: #f97316;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3), 0 0 0 0 rgba(249, 115, 22, 0.7);
+          }
+          70% {
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3), 0 0 0 10px rgba(249, 115, 22, 0);
+          }
+          100% {
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3), 0 0 0 0 rgba(249, 115, 22, 0);
           }
         }
         

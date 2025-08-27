@@ -271,13 +271,20 @@ const MapPage: React.FC = () => {
 };
 
 // Helper function to determine event status
-function getEventStatus(startUtc: string, endUtc: string): 'live' | 'upcoming' | 'past' {
+function getEventStatus(startUtc: string, endUtc: string): 'live' | 'ending_soon' | 'upcoming' | 'past' {
   const now = new Date();
   const start = new Date(startUtc);
   const end = new Date(endUtc);
 
   if (now < start) return 'upcoming';
   if (now > end) return 'past';
+  
+  // Event is currently happening - check if ending soon
+  const minutesToEnd = Math.floor((end.getTime() - now.getTime()) / (1000 * 60));
+  if (minutesToEnd <= 30) {
+    return 'ending_soon';
+  }
+  
   return 'live';
 }
 

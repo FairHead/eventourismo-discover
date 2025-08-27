@@ -24,7 +24,7 @@ interface EventData {
   title: string;
   subtitle: string;
   type: 'event' | 'venue';
-  status: 'live' | 'upcoming' | 'past';
+  status: 'live' | 'ending_soon' | 'upcoming' | 'past';
   startTime: string;
   endTime?: string;
   location: string;
@@ -56,12 +56,14 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData, onEdi
   const getStatusBadge = (status: string) => {
     const variants = {
       live: 'bg-live text-live-foreground',
+      ending_soon: 'bg-orange-500 text-white',
       upcoming: 'bg-upcoming text-upcoming-foreground', 
       past: 'bg-past text-past-foreground'
     };
 
     const labels = {
       live: 'LIVE',
+      ending_soon: 'ENDET BALD',
       upcoming: 'Bevorstehend',
       past: 'Vergangen'
     };
@@ -142,10 +144,14 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData, onEdi
         <div className="sticky top-0 bg-card/98 backdrop-blur-md border-b border-border p-4 flex items-center justify-between z-10">
           <div className="flex items-center gap-2">
             {getStatusBadge(eventData.status)}
-            {eventData.status === 'live' && (
-              <div className="flex items-center gap-1 text-live text-sm animate-pulse">
-                <div className="w-2 h-2 bg-live rounded-full"></div>
-                LÄUFT JETZT
+            {(eventData.status === 'live' || eventData.status === 'ending_soon') && (
+              <div className={`flex items-center gap-1 text-sm animate-pulse ${
+                eventData.status === 'ending_soon' ? 'text-orange-500' : 'text-live'
+              }`}>
+                <div className={`w-2 h-2 rounded-full ${
+                  eventData.status === 'ending_soon' ? 'bg-orange-500' : 'bg-live'
+                }`}></div>
+                {eventData.status === 'ending_soon' ? 'ENDET BALD' : 'LÄUFT JETZT'}
               </div>
             )}
           </div>
@@ -245,6 +251,7 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData, onEdi
                   className={cn(
                     "text-xs font-medium",
                     eventData.status === 'live' && "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+                    eventData.status === 'ending_soon' && "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400",
                     eventData.status === 'upcoming' && "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
                     eventData.status === 'past' && "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400"
                   )}
