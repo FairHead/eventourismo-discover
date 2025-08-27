@@ -174,10 +174,31 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData }) => 
             {/* Time & Location */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm">
-                  <Clock className="w-4 h-4 text-primary" />
-                  <span>{eventData.startTime}</span>
-                  {eventData.endTime && <span>- {eventData.endTime}</span>}
+                <div className="flex flex-col gap-1 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-primary" />
+                    <span className="font-medium">
+                      {new Date(eventData.startTime).toLocaleDateString('de-DE', {
+                        weekday: 'short',
+                        year: 'numeric',
+                        month: 'short', 
+                        day: 'numeric'
+                      })}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 ml-6">
+                    <Clock className="w-4 h-4 text-primary" />
+                    <span>{new Date(eventData.startTime).toLocaleTimeString('de-DE', { 
+                      hour: '2-digit', 
+                      minute: '2-digit' 
+                    })}</span>
+                    {eventData.endTime && (
+                      <span>- {new Date(eventData.endTime).toLocaleTimeString('de-DE', { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                      })}</span>
+                    )}
+                  </div>
                 </div>
                 <Badge 
                   variant="secondary" 
