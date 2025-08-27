@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import mapboxgl from 'mapbox-gl';
 import MapView from '@/components/MapView';
 import InfoPanel from '@/components/InfoPanel';
 import EventCreateModal from '@/components/EventCreateModal';
@@ -48,6 +49,7 @@ const MapPage: React.FC = () => {
   const [editEventId, setEditEventId] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteEventId, setDeleteEventId] = useState<string | null>(null);
+  const [currentMapPosition, setCurrentMapPosition] = useState<{center: [number, number], zoom: number} | null>(null);
   const { user } = useAuth();
 
   const fetchEvents = async () => {
@@ -167,6 +169,22 @@ const MapPage: React.FC = () => {
     // Keep the event panel open by keeping selectedEventId - the updated data will load automatically
   };
 
+  const handleMapReady = (mapInstance: mapboxgl.Map) => {
+    // Update map position when map moves
+    const updatePosition = () => {
+      const center = mapInstance.getCenter();
+      const zoom = mapInstance.getZoom();
+      setCurrentMapPosition({ center: [center.lng, center.lat], zoom });
+    };
+    
+    // Listen for map movements
+    mapInstance.on('moveend', updatePosition);
+    mapInstance.on('zoomend', updatePosition);
+    
+    // Set initial position
+    updatePosition();
+  };
+
   const selectedEvent = selectedEventId ? events.find(event => event.id === selectedEventId) : undefined;
 
   // Transform event data for InfoPanel compatibility
@@ -196,6 +214,7 @@ const MapPage: React.FC = () => {
         onPinClick={handlePinClick} 
         events={events}
         loading={loading}
+        onMapReady={handleMapReady}
       />
       
       {/* Floating Create Event Button */}
@@ -221,6 +240,7 @@ const MapPage: React.FC = () => {
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onEventCreated={handleEventCreated}
+        initialMapPosition={currentMapPosition}
       />
 
       <EventEditModal

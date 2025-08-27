@@ -10,6 +10,7 @@ interface MapViewProps {
   onPinClick?: (eventId: string) => void;
   events?: EventData[];
   loading?: boolean;
+  onMapReady?: (mapInstance: mapboxgl.Map) => void;
 }
 
 interface EventData {
@@ -37,7 +38,7 @@ interface EventData {
   };
 }
 
-const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = false }) => {
+const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = false, onMapReady }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
@@ -96,6 +97,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
 
     map.current.on('load', () => {
       setIsMapboxReady(true);
+      onMapReady?.(map.current!);
     });
 
     return () => {

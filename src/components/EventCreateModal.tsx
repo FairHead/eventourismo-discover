@@ -19,9 +19,10 @@ interface EventCreateModalProps {
   isOpen: boolean;
   onClose: () => void;
   onEventCreated?: () => void;
+  initialMapPosition?: {center: [number, number], zoom: number} | null;
 }
 
-const EventCreateModal: React.FC<EventCreateModalProps> = ({ isOpen, onClose, onEventCreated }) => {
+const EventCreateModal: React.FC<EventCreateModalProps> = ({ isOpen, onClose, onEventCreated, initialMapPosition }) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -93,20 +94,34 @@ const EventCreateModal: React.FC<EventCreateModalProps> = ({ isOpen, onClose, on
         let initialCenter: [number, number] = [10.4515, 51.1657]; // Germany center
         let initialZoom = 6;
 
-        try {
-          const position = await getCurrentPosition();
-          initialCenter = [position.coords.longitude, position.coords.latitude];
-          initialZoom = 12;
+        // Use provided map position if available
+        if (initialMapPosition) {
+          initialCenter = initialMapPosition.center;
+          initialZoom = initialMapPosition.zoom;
           
-          // Update form data with current location
+          // Update form data with center position
           setFormData(prev => ({ 
             ...prev, 
-            lat: position.coords.latitude, 
-            lng: position.coords.longitude 
+            lat: initialMapPosition.center[1], 
+            lng: initialMapPosition.center[0] 
           }));
-        } catch (geoError) {
-          console.log('Could not get current location:', geoError);
-          // Continue with default location
+        } else {
+          // Try to get user's current location only if no initial position provided
+          try {
+            const position = await getCurrentPosition();
+            initialCenter = [position.coords.longitude, position.coords.latitude];
+            initialZoom = 12;
+            
+            // Update form data with current location
+            setFormData(prev => ({ 
+              ...prev, 
+              lat: position.coords.latitude, 
+              lng: position.coords.longitude 
+            }));
+          } catch (geoError) {
+            console.log('Could not get current location:', geoError);
+            // Continue with default location
+          }
         }
 
         if (!mounted) return;
@@ -150,8 +165,8 @@ const EventCreateModal: React.FC<EventCreateModalProps> = ({ isOpen, onClose, on
           setFormData(prev => ({ ...prev, lat, lng, address: place_name }));
         });
 
-        // Add initial marker if we have current location
-        if (initialZoom === 12) {
+        // Add initial marker if we have coordinates
+        if (initialMapPosition || initialZoom === 12) {
           marker.current = new mapboxgl.Marker({ color: '#ef4444' })
             .setLngLat(initialCenter)
             .addTo(map.current);
@@ -242,7 +257,7 @@ const EventCreateModal: React.FC<EventCreateModalProps> = ({ isOpen, onClose, on
         marker.current = null;
       }
     };
-  }, [isOpen, toast]);
+  }, [isOpen, toast, initialMapPosition]);
 
   useEffect(() => {
     if (!isOpen) return;
