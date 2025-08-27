@@ -329,6 +329,9 @@ const Search: React.FC = () => {
     sessionStorage.removeItem('focusEventId');
     sessionStorage.removeItem('focusEventData');
     
+    // Set suppress flag so the map won't auto-center to user on initial load
+    sessionStorage.setItem('suppressAutoCenter', '1');
+    
     // Store the selected event in sessionStorage so MapPage can focus on it
     sessionStorage.setItem('focusEventId', event.id);
     sessionStorage.setItem('focusEventData', JSON.stringify({
@@ -339,7 +342,8 @@ const Search: React.FC = () => {
     
     console.log('Session data set:', {
       focusEventId: event.id,
-      focusEventData: { lat: event.lat, lng: event.lng, zoom: 15 }
+      focusEventData: { lat: event.lat, lng: event.lng, zoom: 15 },
+      suppressAutoCenter: true,
     });
     
     navigate('/');

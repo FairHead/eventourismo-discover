@@ -138,19 +138,25 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
         
         // Check if we came from Event Search with a specific event to focus on
         const hasPendingEventFocus = !!sessionStorage.getItem('focusEventId') && !!sessionStorage.getItem('focusEventData');
+        const suppressAutoCenter = sessionStorage.getItem('suppressAutoCenter') === '1';
         
-        // Only zoom to user location if we didn't come from Event Search
-        if (!hasPendingEventFocus) {
+        // Only zoom to user location if we didn't come from Event Search or suppress flag
+        if (!hasPendingEventFocus && !suppressAutoCenter) {
           console.log('Direct map access - zooming to user location:', coords);
           map.current?.flyTo({ center: coords, zoom: 14, duration: 2000 });
         } else {
-          console.log('Event search navigation detected - skipping user location zoom, event focus will handle positioning');
+          console.log('Event search navigation or suppress flag detected - skipping user location zoom');
         }
         
         // Ensure marker exists immediately
         if (!userMarkerRef.current) {
           console.log('Creating user location marker (initial)');
           createUserLocationMarker(coords);
+        }
+        
+        // Clear suppress flag after first geolocation handling
+        if (suppressAutoCenter) {
+          sessionStorage.removeItem('suppressAutoCenter');
         }
       },
       (error) => {
