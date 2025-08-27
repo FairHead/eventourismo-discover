@@ -220,8 +220,10 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
         inner.classList.add('event-live-pulse');
       } else if (status === 'finished') {
         inner.style.border = '3px solid #ef4444'; // Red border for finished events
+        inner.style.animation = 'eventPulseRed 2s infinite';
       } else if (status === 'today') {
         inner.style.border = '3px solid #eab308'; // Yellow border
+        inner.style.animation = 'eventPulseYellow 2s infinite';
       } else {
         inner.style.border = '2px solid #3b82f6'; // Blue border for upcoming
       }
@@ -339,6 +341,32 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
           }
           100% {
             box-shadow: 0 2px 10px rgba(0,0,0,0.3), 0 0 0 0 rgba(34, 197, 94, 0);
+          }
+        }
+        
+        @keyframes eventPulseRed {
+          0% {
+            border-color: #ef4444;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3), 0 0 0 0 rgba(239, 68, 68, 0.7);
+          }
+          70% {
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3), 0 0 0 10px rgba(239, 68, 68, 0);
+          }
+          100% {
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3), 0 0 0 0 rgba(239, 68, 68, 0);
+          }
+        }
+        
+        @keyframes eventPulseYellow {
+          0% {
+            border-color: #eab308;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3), 0 0 0 0 rgba(234, 179, 8, 0.7);
+          }
+          70% {
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3), 0 0 0 10px rgba(234, 179, 8, 0);
+          }
+          100% {
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3), 0 0 0 0 rgba(234, 179, 8, 0);
           }
         }
       `}</style>
