@@ -41,11 +41,13 @@ const EventCreateModal: React.FC<EventCreateModalProps> = ({ isOpen, onClose, on
     website_url: '',
     ticket_url: '',
     lat: 0,
-    lng: 0
+    lng: 0,
+    address: ''
   });
 
   const [bands, setBands] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [geocoding, setGeocoding] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -272,6 +274,69 @@ const EventCreateModal: React.FC<EventCreateModalProps> = ({ isOpen, onClose, on
     }));
   };
 
+  const geocodeAddress = async () => {
+    if (!formData.address.trim()) {
+      toast({
+        title: "Fehler",
+        description: "Bitte geben Sie eine Adresse ein",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setGeocoding(true);
+    try {
+      const { data } = await supabase.functions.invoke('get-mapbox-token');
+      const token = data.token;
+      
+      const response = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(formData.address)}.json?access_token=${token}&country=de&limit=1`
+      );
+      
+      const data_geo = await response.json();
+      
+      if (data_geo.features && data_geo.features.length > 0) {
+        const [lng, lat] = data_geo.features[0].center;
+        
+        // Remove existing marker
+        if (marker.current) {
+          marker.current.remove();
+        }
+        
+        // Add new marker
+        marker.current = new mapboxgl.Marker({ color: '#ef4444' })
+          .setLngLat([lng, lat])
+          .addTo(map.current!);
+        
+        // Center map on the location
+        map.current?.flyTo({ center: [lng, lat], zoom: 15 });
+        
+        // Update form data
+        setFormData(prev => ({ ...prev, lat, lng }));
+        
+        toast({
+          title: "Erfolg",
+          description: "Adresse erfolgreich gefunden und markiert"
+        });
+      } else {
+        toast({
+          title: "Fehler",
+          description: "Adresse konnte nicht gefunden werden",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Geocoding error:', error);
+      toast({
+        title: "Fehler",
+        description: "Fehler beim Suchen der Adresse",
+        variant: "destructive"
+      });
+    } finally {
+      setGeocoding(false);
+    }
+  };
+
   const handleClose = () => {
     // Reset form
     setFormData({
@@ -287,7 +352,8 @@ const EventCreateModal: React.FC<EventCreateModalProps> = ({ isOpen, onClose, on
       website_url: '',
       ticket_url: '',
       lat: 0,
-      lng: 0
+      lng: 0,
+      address: ''
     });
     onClose();
   };
@@ -392,14 +458,38 @@ const EventCreateModal: React.FC<EventCreateModalProps> = ({ isOpen, onClose, on
                 Ort auswählen
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="address">Adresse eingeben</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="address"
+                    value={formData.address}
+                    onChange={(e) => handleInputChange('address', e.target.value)}
+                    placeholder="z.B. Musterstraße 1, 12345 Berlin"
+                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), geocodeAddress())}
+                  />
+                  <Button 
+                    type="button" 
+                    onClick={geocodeAddress}
+                    disabled={geocoding || !formData.address.trim()}
+                    variant="outline"
+                  >
+                    {geocoding ? 'Suchen...' : 'Suchen'}
+                  </Button>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Geben Sie eine Adresse ein und klicken Sie "Suchen", um sie auf der Karte zu markieren
+                </p>
+              </div>
+
               <div 
                 ref={mapContainer} 
                 className="w-full h-64 rounded-lg border"
                 style={{ minHeight: '256px', minWidth: '100%' }}
               />
               <p className="text-sm text-muted-foreground mt-2">
-                Klicken Sie auf die Karte oder suchen Sie nach einem Ort (oben links) um den Event-Ort festzulegen. 
+                Klicken Sie auf die Karte, geben Sie oben eine Adresse ein, oder suchen Sie nach einem Ort (oben links auf der Karte) um den Event-Ort festzulegen. 
                 Die Karte zeigt automatisch Ihren aktuellen Standort an.
               </p>
               {formData.lat && formData.lng && (
