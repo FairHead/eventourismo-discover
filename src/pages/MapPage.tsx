@@ -121,20 +121,20 @@ const MapPage: React.FC = () => {
     
     console.log('Checking for focus event:', { focusEventId, focusEventData, mapInstance: !!mapInstance, eventsLength: events.length });
     
-    if (focusEventId && focusEventData && mapInstance && events.length > 0) {
+    if (focusEventId && focusEventData && mapInstance) {
       try {
         const eventData = JSON.parse(focusEventData);
         
         console.log('Focusing on event:', focusEventId, 'at location:', eventData);
         
-        // Focus on the event on the map
+        // Focus on the event on the map immediately
         mapInstance.flyTo({
           center: [eventData.lng, eventData.lat],
           zoom: eventData.zoom || 15,
           duration: 2000
         });
         
-        // Select the event to show in panel
+        // Select the event to show in panel (even if events haven't loaded yet)
         setSelectedEventId(focusEventId);
         
         // Clear the session storage
@@ -144,9 +144,12 @@ const MapPage: React.FC = () => {
         console.log('Event focus completed');
       } catch (error) {
         console.error('Error parsing focus event data:', error);
+        // Clear invalid session data
+        sessionStorage.removeItem('focusEventId');
+        sessionStorage.removeItem('focusEventData');
       }
     }
-  }, [mapInstance, events]);
+  }, [mapInstance]); // Remove events dependency to focus immediately when map is ready
 
   const handlePinClick = (eventId: string) => {
     setSelectedEventId(eventId);
