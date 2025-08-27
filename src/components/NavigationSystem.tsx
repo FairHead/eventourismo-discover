@@ -165,19 +165,36 @@ const NavigationSystem: React.FC<NavigationSystemProps> = ({
   const displayRouteOnMap = (navigationRoute: NavigationRoute) => {
     if (!map) return;
 
-    // Remove existing route
+    // Remove ALL existing route layers from map to ensure clean state
     try {
-      if (map.getLayer(routeSourceId.current)) {
-        map.removeLayer(routeSourceId.current);
+      const style = map.getStyle();
+      if (style?.layers) {
+        // Remove any route-related layers
+        style.layers.forEach(layer => {
+          if (layer.id.includes('route') || layer.id.includes('navigation')) {
+            try {
+              map.removeLayer(layer.id);
+            } catch (e) {
+              console.warn('Error removing layer:', layer.id, e);
+            }
+          }
+        });
       }
-      if (map.getLayer(routeSourceId.current + '-outline')) {
-        map.removeLayer(routeSourceId.current + '-outline');
-      }
-      if (map.getSource(routeSourceId.current)) {
-        map.removeSource(routeSourceId.current);
+      
+      // Remove any route-related sources
+      if (style?.sources) {
+        Object.keys(style.sources).forEach(sourceId => {
+          if (sourceId.includes('route') || sourceId.includes('navigation')) {
+            try {
+              map.removeSource(sourceId);
+            } catch (e) {
+              console.warn('Error removing source:', sourceId, e);
+            }
+          }
+        });
       }
     } catch (error) {
-      console.warn('Error removing existing route:', error);
+      console.warn('Error removing existing routes:', error);
     }
 
     // Add new route
@@ -351,6 +368,15 @@ const NavigationSystem: React.FC<NavigationSystemProps> = ({
     setRemainingDistance(totalRemainingDistance);
     setRemainingDuration(totalRemainingDuration);
 
+    // Recalculate route if user significantly deviated (>100m from route)
+    if (route && route.geometry && route.geometry.coordinates) {
+      const closestPointDistance = findClosestPointOnRoute(currentLocation, route.geometry.coordinates);
+      if (closestPointDistance > 100) {
+        console.log('User deviated from route, recalculating...');
+        recalculateRoute();
+      }
+    }
+
     // Check if arrived at destination (within 20 meters)
     const distanceToDestination = calculateDistance(currentLocation, destinationCoords);
     if (distanceToDestination < 20) {
@@ -359,6 +385,20 @@ const NavigationSystem: React.FC<NavigationSystemProps> = ({
         speakInstruction(`Sie haben Ihr Ziel ${destinationName} erreicht.`);
       }
     }
+  };
+
+  // Helper function to find closest point on route
+  const findClosestPointOnRoute = (currentLocation: [number, number], routeCoordinates: [number, number][]) => {
+    let minDistance = Infinity;
+    
+    for (const coord of routeCoordinates) {
+      const distance = calculateDistance(currentLocation, coord);
+      if (distance < minDistance) {
+        minDistance = distance;
+      }
+    }
+    
+    return minDistance;
   };
 
   // Start navigation
@@ -412,17 +452,32 @@ const NavigationSystem: React.FC<NavigationSystemProps> = ({
       positionWatchId.current = null;
     }
 
-    // Remove route from map
+    // Remove ALL route-related layers and sources from map
     if (map) {
       try {
-        if (map.getLayer(routeSourceId.current)) {
-          map.removeLayer(routeSourceId.current);
+        const style = map.getStyle();
+        if (style?.layers) {
+          style.layers.forEach(layer => {
+            if (layer.id.includes('route') || layer.id.includes('navigation')) {
+              try {
+                map.removeLayer(layer.id);
+              } catch (e) {
+                console.warn('Error removing layer:', layer.id, e);
+              }
+            }
+          });
         }
-        if (map.getLayer(routeSourceId.current + '-outline')) {
-          map.removeLayer(routeSourceId.current + '-outline');
-        }
-        if (map.getSource(routeSourceId.current)) {
-          map.removeSource(routeSourceId.current);
+        
+        if (style?.sources) {
+          Object.keys(style.sources).forEach(sourceId => {
+            if (sourceId.includes('route') || sourceId.includes('navigation')) {
+              try {
+                map.removeSource(sourceId);
+              } catch (e) {
+                console.warn('Error removing source:', sourceId, e);
+              }
+            }
+          });
         }
       } catch (error) {
         console.warn('Error removing navigation route:', error);

@@ -452,18 +452,34 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
   };
 
   const clearRoute = () => {
-    if (!map.current || !routeLayer) return;
+    if (!map.current) return;
 
     try {
-      // Remove route layers and source
-      if (map.current.getLayer(routeLayer)) {
-        map.current.removeLayer(routeLayer);
+      const style = map.current.getStyle();
+      if (style?.layers) {
+        // Remove ALL route-related layers
+        style.layers.forEach(layer => {
+          if (layer.id.includes('route') || layer.id.includes('navigation')) {
+            try {
+              map.current!.removeLayer(layer.id);
+            } catch (e) {
+              console.warn('Error removing layer:', layer.id, e);
+            }
+          }
+        });
       }
-      if (map.current.getLayer(routeLayer + '-outline')) {
-        map.current.removeLayer(routeLayer + '-outline');
-      }
-      if (map.current.getSource(routeLayer)) {
-        map.current.removeSource(routeLayer);
+      
+      if (style?.sources) {
+        // Remove ALL route-related sources
+        Object.keys(style.sources).forEach(sourceId => {
+          if (sourceId.includes('route') || sourceId.includes('navigation')) {
+            try {
+              map.current!.removeSource(sourceId);
+            } catch (e) {
+              console.warn('Error removing source:', sourceId, e);
+            }
+          }
+        });
       }
     } catch (error) {
       console.warn('Error clearing route:', error);
