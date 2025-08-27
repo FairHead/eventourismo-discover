@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Search, Filter, MapPin, Users, Navigation as NavigationIcon, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import NavigationSystem from './NavigationSystem';
 
 interface MapViewProps {
@@ -169,6 +170,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       },
       (error) => {
         console.warn('Geolocation error:', error.message, error.code);
+        toast.error('Standort konnte nicht ermittelt werden. Bitte Standortzugriff erlauben.');
         // Try to get cached location or use default
         if (userLocation) {
           createUserLocationMarker(userLocation);
@@ -191,11 +193,11 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
           setUserLocation(coords);
           
           // Always ensure marker exists and update position
-          if (userMarkerRef.current) {
+          if (userMarkerRef.current && userMarkerRef.current.getElement()?.isConnected) {
             userMarkerRef.current.setLngLat(coords);
             console.log('Updated existing marker position');
           } else {
-            console.log('Marker missing, recreating...');
+            console.log('Marker missing or detached, recreating...');
             createUserLocationMarker(coords);
           }
         },
