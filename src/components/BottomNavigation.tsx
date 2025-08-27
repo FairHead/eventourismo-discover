@@ -5,7 +5,6 @@ import {
   Map, 
   Heart, 
   User, 
-  Plus,
   Search
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -21,7 +20,6 @@ const BottomNavigation: React.FC = () => {
   const navItems = [
     { path: '/', icon: Map, label: 'Karte' },
     { path: '/search', icon: Search, label: 'Suchen' },
-    { path: '/create', icon: Plus, label: 'Erstellen' },
     { path: '/favorites', icon: Heart, label: 'Favoriten' },
     { path: '/profile', icon: User, label: 'Profil' },
   ];
