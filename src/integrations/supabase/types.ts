@@ -618,6 +618,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      user_can_manage_band: {
+        Args: { _band_id: string; _uid: string }
+        Returns: boolean
+      }
     }
     Enums: {
       event_status: "draft" | "published" | "cancelled"
