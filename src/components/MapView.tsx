@@ -135,12 +135,15 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
 
   // Get user location and track heading
   useEffect(() => {
-    if (!navigator.geolocation || !map.current) return;
+    if (!navigator.geolocation || !map.current || !isMapboxReady) return;
 
-    // Center map on user's current position (no marker creation here)
+    console.log('Setting up geolocation tracking...');
+
+    // Center map on user's current position and create marker
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const coords: [number, number] = [position.coords.longitude, position.coords.latitude];
+        console.log('Got initial user location:', coords);
         setUserLocation(coords);
         
         // Check if we came from Event Search with a specific event to focus on
@@ -155,11 +158,9 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
           console.log('Event search navigation or suppress flag detected - skipping user location zoom');
         }
         
-        // Ensure marker exists immediately
-        if (!userMarkerRef.current) {
-          console.log('Creating user location marker (initial)');
-          createUserLocationMarker(coords);
-        }
+        // Always create user location marker
+        console.log('Creating user location marker (initial)');
+        createUserLocationMarker(coords);
         
         // Clear suppress flag after first geolocation handling
         if (suppressAutoCenter) {
@@ -167,47 +168,56 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
         }
       },
       (error) => {
-        console.warn('Geolocation error:', error);
+        console.warn('Geolocation error:', error.message, error.code);
+        // Try to get cached location or use default
+        if (userLocation) {
+          createUserLocationMarker(userLocation);
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 30000
       }
     );
 
-    // Start watcher once
+    // Start continuous position tracking
     if (geoWatchIdRef.current === null) {
+      console.log('Starting geolocation watch...');
       geoWatchIdRef.current = navigator.geolocation.watchPosition(
         (position) => {
           const coords: [number, number] = [position.coords.longitude, position.coords.latitude];
+          console.log('Location update:', coords);
           setUserLocation(coords);
           
-          // Update existing marker position instead of creating new one
+          // Always ensure marker exists and update position
           if (userMarkerRef.current) {
             userMarkerRef.current.setLngLat(coords);
-          } else if (map.current) {
-            // Create marker if it doesn't exist
+            console.log('Updated existing marker position');
+          } else {
+            console.log('Marker missing, recreating...');
             createUserLocationMarker(coords);
           }
         },
         (error) => {
-          console.warn('Geolocation watch error:', error);
+          console.warn('Geolocation watch error:', error.message, error.code);
         },
         {
           enableHighAccuracy: true,
-          maximumAge: 10000,
-          timeout: 5000
+          maximumAge: 5000,
+          timeout: 10000
         }
       );
     }
 
     return () => {
+      console.log('Cleaning up geolocation...');
       if (geoWatchIdRef.current !== null) {
         navigator.geolocation.clearWatch(geoWatchIdRef.current);
         geoWatchIdRef.current = null;
       }
-      if (userMarkerRef.current) {
-        userMarkerRef.current.remove();
-        userMarkerRef.current = null;
-      }
     };
-  }, [isMapboxReady]); // Change dependency to isMapboxReady
+  }, [isMapboxReady]); // Keep dependency on isMapboxReady but add better logging
 
   // Track device orientation for heading
   useEffect(() => {
@@ -247,7 +257,11 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
 
   const createUserLocationMarker = (coords: [number, number]) => {
     // Ensure map is fully initialized and container exists
-    if (!map.current) return;
+    if (!map.current || !isMapboxReady) {
+      console.warn('Map not ready for marker creation');
+      return;
+    }
+    
     try {
       const container = (map.current as any).getContainer?.();
       const canvas = (map.current as any).getCanvas?.();
@@ -256,13 +270,22 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
         return;
       }
 
-      // Remove existing user marker
+      // Remove existing user marker safely
       if (userMarkerRef.current) {
-        userMarkerRef.current.remove();
+        try {
+          userMarkerRef.current.remove();
+          console.log('Removed existing user marker');
+        } catch (e) {
+          console.warn('Error removing existing marker:', e);
+        }
+        userMarkerRef.current = null;
       }
+
+      console.log('Creating new user location marker at:', coords);
 
       // Create user location marker element
       const el = document.createElement('div');
+      el.className = 'user-location-marker';
       el.style.width = '20px';
       el.style.height = '20px';
       el.style.position = 'relative';
@@ -315,11 +338,18 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       el.appendChild(userDot);
       el.appendChild(arrow);
 
-      const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
+      const marker = new mapboxgl.Marker({ 
+        element: el, 
+        anchor: 'center',
+        pitchAlignment: 'auto',
+        rotationAlignment: 'auto'
+      })
         .setLngLat(coords)
         .addTo(map.current!);
 
       userMarkerRef.current = marker;
+      console.log('Successfully created user location marker');
+      
     } catch (err) {
       console.error('Failed to create user location marker:', err);
     }
