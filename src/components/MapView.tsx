@@ -324,6 +324,26 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       console.error('Failed to create user location marker:', err);
     }
   };
+  // Get nearest road address using reverse geocoding
+  const getNearestAddress = async (coords: [number, number]): Promise<[number, number]> => {
+    try {
+      const response = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${coords[0]},${coords[1]}.json?access_token=${mapboxToken}&types=address,poi&limit=1`
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.features && data.features.length > 0) {
+          const feature = data.features[0];
+          return [feature.center[0], feature.center[1]];
+        }
+      }
+    } catch (error) {
+      console.warn('Could not get nearest address, using original coordinates:', error);
+    }
+    return coords; // Fallback to original coordinates
+  };
+
   // Route calculation and display
   const calculateRoute = async (
     destination: [number, number],
@@ -335,11 +355,15 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     }
 
     try {
+      // Snap destination to nearest road/address for better routing
+      const snappedDestination = await getNearestAddress(destination);
+      console.log('Original destination:', destination, 'Snapped to:', snappedDestination);
+
       const profile = transportMode === 'cycling' ? 'cycling' : 
                     transportMode === 'walking' ? 'walking' : 'driving';
       
       const response = await fetch(
-        `https://api.mapbox.com/directions/v5/mapbox/${profile}/${userLocation[0]},${userLocation[1]};${destination[0]},${destination[1]}?` +
+        `https://api.mapbox.com/directions/v5/mapbox/${profile}/${userLocation[0]},${userLocation[1]};${snappedDestination[0]},${snappedDestination[1]}?` +
         `steps=true&geometries=geojson&access_token=${mapboxToken}&language=de`
       );
 

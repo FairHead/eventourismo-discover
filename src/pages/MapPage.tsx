@@ -241,11 +241,32 @@ const MapPage: React.FC = () => {
     }
   };
 
+  // Get nearest road address using reverse geocoding  
+  const getNearestAddress = async (coords: [number, number], token: string): Promise<[number, number]> => {
+    try {
+      const response = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${coords[0]},${coords[1]}.json?access_token=${token}&types=address,poi&limit=1`
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.features && data.features.length > 0) {
+          const feature = data.features[0];
+          return [feature.center[0], feature.center[1]];
+        }
+      }
+    } catch (error) {
+      console.warn('Could not get nearest address, using original coordinates:', error);
+    }
+    return coords; // Fallback to original coordinates
+  };
+
   const calculateRoute = async (destination: [number, number], mode: 'walking' | 'cycling' | 'driving') => {
     if (!currentMapPosition || !mapInstance) {
       throw new Error('Map not ready');
     }
 
+    // Always use the actual user location from MapView, not map center
     const userLocation = currentMapPosition.center;
     
     try {
@@ -253,11 +274,15 @@ const MapPage: React.FC = () => {
       const { data: tokenData, error } = await supabase.functions.invoke('get-mapbox-token');
       if (error) throw error;
 
+      // Snap destination to nearest road/address for better routing
+      const snappedDestination = await getNearestAddress(destination, tokenData.token);
+      console.log('Routing from user location:', userLocation, 'to snapped destination:', snappedDestination);
+
       const profile = mode === 'cycling' ? 'cycling' : 
                     mode === 'walking' ? 'walking' : 'driving';
       
       const response = await fetch(
-        `https://api.mapbox.com/directions/v5/mapbox/${profile}/${userLocation[0]},${userLocation[1]};${destination[0]},${destination[1]}?` +
+        `https://api.mapbox.com/directions/v5/mapbox/${profile}/${userLocation[0]},${userLocation[1]};${snappedDestination[0]},${snappedDestination[1]}?` +
         `steps=true&geometries=geojson&access_token=${tokenData.token}&language=de`
       );
 
@@ -271,13 +296,16 @@ const MapPage: React.FC = () => {
         // Display route on map
         displayRoute(route);
         
-        // Fit map to show entire route
+        // Fit map to show entire route with user location
         const coordinates = route.geometry.coordinates;
         const bounds = coordinates.reduce((bounds: mapboxgl.LngLatBounds, coord: [number, number]) => {
           return bounds.extend(coord);
         }, new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]));
         
-        mapInstance.fitBounds(bounds, { padding: 50 });
+        // Also include user location in bounds
+        bounds.extend(userLocation);
+        
+        mapInstance.fitBounds(bounds, { padding: 80 });
         
         return {
           duration: route.duration,
@@ -336,7 +364,7 @@ const MapPage: React.FC = () => {
       },
       paint: {
         'line-color': '#007AFF',
-        'line-width': 5,
+        'line-width': 6,
         'line-opacity': 1
       }
     });

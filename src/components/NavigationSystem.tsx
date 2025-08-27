@@ -76,6 +76,46 @@ const NavigationSystem: React.FC<NavigationSystemProps> = ({
   const routeSourceId = useRef('navigation-route');
   const positionWatchId = useRef<number | null>(null);
 
+  // Snap coordinates to nearest road
+  const snapToRoad = async (coords: [number, number], token: string): Promise<[number, number]> => {
+    try {
+      const response = await fetch(
+        `https://api.mapbox.com/matching/v5/mapbox/driving/${coords[0]},${coords[1]}?access_token=${token}&geometries=geojson&radiuses=50`
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.matchings && data.matchings.length > 0) {
+          const matchedCoords = data.matchings[0].geometry.coordinates[0];
+          return [matchedCoords[0], matchedCoords[1]];
+        }
+      }
+    } catch (error) {
+      console.warn('Could not snap to road, using original coordinates:', error);
+    }
+    return coords; // Fallback to original coordinates
+  };
+
+  // Get nearest road address using reverse geocoding
+  const getNearestAddress = async (coords: [number, number], token: string): Promise<[number, number]> => {
+    try {
+      const response = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${coords[0]},${coords[1]}.json?access_token=${token}&types=address,poi&limit=1`
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.features && data.features.length > 0) {
+          const feature = data.features[0];
+          return [feature.center[0], feature.center[1]];
+        }
+      }
+    } catch (error) {
+      console.warn('Could not get nearest address, using original coordinates:', error);
+    }
+    return coords; // Fallback to original coordinates
+  };
+
   // Calculate route to destination
   const calculateRoute = async (fromCoords: [number, number], toCoords: [number, number]) => {
     if (!map) return;
@@ -85,8 +125,16 @@ const NavigationSystem: React.FC<NavigationSystemProps> = ({
       const { data, error } = await supabase.functions.invoke('get-mapbox-token');
       if (error || !data?.token) throw new Error('Mapbox token not available');
 
+      // Ensure we always start from user's current location
+      const startCoords = userLocation || fromCoords;
+      
+      // Snap destination to nearest road/address for better routing
+      const snappedDestination = await getNearestAddress(toCoords, data.token);
+      
+      console.log('Routing from:', startCoords, 'to snapped destination:', snappedDestination);
+
       const response = await fetch(
-        `https://api.mapbox.com/directions/v5/mapbox/walking/${fromCoords[0]},${fromCoords[1]};${toCoords[0]},${toCoords[1]}?steps=true&geometries=geojson&access_token=${data.token}&language=de`
+        `https://api.mapbox.com/directions/v5/mapbox/walking/${startCoords[0]},${startCoords[1]};${snappedDestination[0]},${snappedDestination[1]}?steps=true&geometries=geojson&access_token=${data.token}&language=de`
       );
 
       if (!response.ok) throw new Error('Route calculation failed');
@@ -145,7 +193,7 @@ const NavigationSystem: React.FC<NavigationSystemProps> = ({
       }
     });
 
-    // Route outline
+    // Route outline (white border)
     map.addLayer({
       id: routeSourceId.current + '-outline',
       type: 'line',
@@ -157,11 +205,11 @@ const NavigationSystem: React.FC<NavigationSystemProps> = ({
       paint: {
         'line-color': '#ffffff',
         'line-width': 8,
-        'line-opacity': 0.8
+        'line-opacity': 0.9
       }
     });
 
-    // Main route line
+    // Main route line (blue)
     map.addLayer({
       id: routeSourceId.current,
       type: 'line',
@@ -171,8 +219,9 @@ const NavigationSystem: React.FC<NavigationSystemProps> = ({
         'line-cap': 'round'
       },
       paint: {
-        'line-color': '#3b82f6',
-        'line-width': 6
+        'line-color': '#007AFF',
+        'line-width': 6,
+        'line-opacity': 1
       }
     });
 
