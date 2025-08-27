@@ -171,22 +171,31 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
   };
 
   const clearMarkers = () => {
-    markers.forEach(marker => marker.remove());
+    console.log('Clearing', markers.length, 'markers');
+    markers.forEach(marker => {
+      try {
+        marker.remove();
+      } catch (error) {
+        console.warn('Error removing marker:', error);
+      }
+    });
     setMarkers([]);
   };
 
   const addEventPins = () => {
     if (!map.current) return;
 
-    // Clear existing markers
+    // Clear existing markers completely
     clearMarkers();
     const newMarkers: mapboxgl.Marker[] = [];
 
-    // Filter out past events
+    // Filter out past events (older than 3 hours after end)
     const activeEvents = events.filter(event => {
       const status = getEventStatus(event.start_utc, event.end_utc);
       return status !== 'past';
     });
+
+    console.log('Adding pins for events:', activeEvents.length, 'events');
 
     activeEvents.forEach((event) => {
       const status = getEventStatus(event.start_utc, event.end_utc);
@@ -196,6 +205,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       el.setAttribute('data-event-id', event.id);
       el.style.cursor = 'pointer';
       el.style.zIndex = '100';
+      el.style.position = 'relative';
 
       const inner = document.createElement('div');
       inner.style.width = '32px';
@@ -217,7 +227,6 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       if (status === 'live') {
         inner.style.border = '3px solid #22c55e'; // Green border
         inner.style.animation = 'eventPulse 2s infinite';
-        inner.classList.add('event-live-pulse');
       } else if (status === 'finished') {
         inner.style.border = '3px solid #ef4444'; // Red border for finished events
         inner.style.animation = 'eventPulseRed 2s infinite';
@@ -230,7 +239,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
 
       el.appendChild(inner);
 
-      // Hover effects on inner content only (do NOT modify outer transform)
+      // Hover effects
       el.addEventListener('mouseenter', (e) => {
         e.stopPropagation();
         inner.style.transform = 'scale(1.2)';
@@ -243,14 +252,17 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
         el.style.zIndex = '100';
       });
 
-      // Click handler: only open side sheet, no Mapbox popup to avoid duplicate UI
+      // Click handler - ensure event ID is correctly passed
       el.addEventListener('click', (e) => {
         e.stopPropagation();
         e.preventDefault();
-        onPinClick?.(event.id);
+        console.log('Pin clicked for event:', event.id);
+        if (onPinClick) {
+          onPinClick(event.id);
+        }
       });
 
-      // Create marker with center anchor to prevent positioning issues
+      // Create marker with center anchor
       const marker = new mapboxgl.Marker({
         element: el,
         anchor: 'center',
@@ -262,6 +274,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       newMarkers.push(marker);
     });
 
+    console.log('Created', newMarkers.length, 'markers');
     setMarkers(newMarkers);
   };
 
