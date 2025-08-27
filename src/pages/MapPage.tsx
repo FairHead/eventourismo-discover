@@ -119,9 +119,13 @@ const MapPage: React.FC = () => {
     const focusEventId = sessionStorage.getItem('focusEventId');
     const focusEventData = sessionStorage.getItem('focusEventData');
     
-    if (focusEventId && focusEventData && mapInstance) {
+    console.log('Checking for focus event:', { focusEventId, focusEventData, mapInstance: !!mapInstance, eventsLength: events.length });
+    
+    if (focusEventId && focusEventData && mapInstance && events.length > 0) {
       try {
         const eventData = JSON.parse(focusEventData);
+        
+        console.log('Focusing on event:', focusEventId, 'at location:', eventData);
         
         // Focus on the event on the map
         mapInstance.flyTo({
@@ -136,6 +140,8 @@ const MapPage: React.FC = () => {
         // Clear the session storage
         sessionStorage.removeItem('focusEventId');
         sessionStorage.removeItem('focusEventData');
+        
+        console.log('Event focus completed');
       } catch (error) {
         console.error('Error parsing focus event data:', error);
       }

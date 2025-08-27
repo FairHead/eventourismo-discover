@@ -93,32 +93,44 @@ const Search: React.FC = () => {
 
       if (error) throw error;
 
-      // Reverse geocode locations for events
-      const eventsWithLocation = await Promise.all(
-        (data || []).map(async (event) => {
+      console.log('Events loaded successfully:', data?.length || 0);
+      setEvents(data || []);
+
+      // Optionally try to add location info in background (non-blocking)
+      if (data && data.length > 0) {
+        setTimeout(async () => {
           try {
-            const { data: locationData, error: geoError } = await supabase.functions.invoke(
-              'reverse-geocode',
-              {
-                body: { lat: event.lat, lng: event.lng }
-              }
+            const eventsWithLocation = await Promise.all(
+              data.map(async (event) => {
+                try {
+                  const { data: locationData, error: geoError } = await supabase.functions.invoke(
+                    'reverse-geocode',
+                    {
+                      body: { lat: event.lat, lng: event.lng }
+                    }
+                  );
+
+                  if (!geoError && locationData) {
+                    return {
+                      ...event,
+                      locationInfo: locationData
+                    };
+                  }
+                } catch (error) {
+                  console.warn('Geocoding failed for event:', event.id, error);
+                }
+                
+                return event;
+              })
             );
 
-            if (!geoError && locationData) {
-              return {
-                ...event,
-                locationInfo: locationData
-              };
-            }
+            console.log('Updated events with location info');
+            setEvents(eventsWithLocation);
           } catch (error) {
-            console.error('Geocoding failed for event:', event.id, error);
+            console.warn('Background geocoding failed:', error);
           }
-          
-          return event;
-        })
-      );
-
-      setEvents(eventsWithLocation);
+        }, 100);
+      }
     } catch (error) {
       console.error('Error fetching events:', error);
       toast.error("Events konnten nicht geladen werden");
