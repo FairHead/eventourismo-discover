@@ -47,7 +47,6 @@ const EventCreateModal: React.FC<EventCreateModalProps> = ({ isOpen, onClose, on
 
   const [bands, setBands] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [geocoding, setGeocoding] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -132,9 +131,9 @@ const EventCreateModal: React.FC<EventCreateModalProps> = ({ isOpen, onClose, on
         
         map.current.addControl(geocoder, 'top-left');
 
-        // Handle geocoder result
+        // Handle geocoder result - store both coordinates and address
         geocoder.on('result', (e) => {
-          const { center } = e.result;
+          const { center, place_name } = e.result;
           const [lng, lat] = center;
           
           // Remove existing marker
@@ -147,8 +146,8 @@ const EventCreateModal: React.FC<EventCreateModalProps> = ({ isOpen, onClose, on
             .setLngLat([lng, lat])
             .addTo(map.current!);
           
-          // Update form data
-          setFormData(prev => ({ ...prev, lat, lng }));
+          // Update form data with coordinates and address
+          setFormData(prev => ({ ...prev, lat, lng, address: place_name }));
         });
 
         // Add initial marker if we have current location
@@ -158,8 +157,8 @@ const EventCreateModal: React.FC<EventCreateModalProps> = ({ isOpen, onClose, on
             .addTo(map.current);
         }
 
-        // Add click handler to place pin
-        map.current.on('click', (e) => {
+        // Add click handler to place pin and get address via reverse geocoding
+        map.current.on('click', async (e) => {
           const { lng, lat } = e.lngLat;
           
           // Remove existing marker
@@ -172,8 +171,24 @@ const EventCreateModal: React.FC<EventCreateModalProps> = ({ isOpen, onClose, on
             .setLngLat([lng, lat])
             .addTo(map.current!);
           
-          // Update form data
+          // Update coordinates immediately
           setFormData(prev => ({ ...prev, lat, lng }));
+          
+          // Reverse geocode to get address
+          try {
+            const response = await fetch(
+              `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${data.token}&types=address,poi&country=de&limit=1`
+            );
+            const geoData = await response.json();
+            
+            if (geoData.features && geoData.features.length > 0) {
+              const address = geoData.features[0].place_name;
+              setFormData(prev => ({ ...prev, address }));
+            }
+          } catch (error) {
+            console.error('Reverse geocoding failed:', error);
+            // Don't show error to user, coordinates are still valid
+          }
         });
 
         // Ensure map resizes properly when modal is opened
@@ -272,69 +287,6 @@ const EventCreateModal: React.FC<EventCreateModalProps> = ({ isOpen, onClose, on
         ? prev.genres.filter(g => g !== genre)
         : [...prev.genres, genre]
     }));
-  };
-
-  const geocodeAddress = async () => {
-    if (!formData.address.trim()) {
-      toast({
-        title: "Fehler",
-        description: "Bitte geben Sie eine Adresse ein",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setGeocoding(true);
-    try {
-      const { data } = await supabase.functions.invoke('get-mapbox-token');
-      const token = data.token;
-      
-      const response = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(formData.address)}.json?access_token=${token}&country=de&limit=1`
-      );
-      
-      const data_geo = await response.json();
-      
-      if (data_geo.features && data_geo.features.length > 0) {
-        const [lng, lat] = data_geo.features[0].center;
-        
-        // Remove existing marker
-        if (marker.current) {
-          marker.current.remove();
-        }
-        
-        // Add new marker
-        marker.current = new mapboxgl.Marker({ color: '#ef4444' })
-          .setLngLat([lng, lat])
-          .addTo(map.current!);
-        
-        // Center map on the location
-        map.current?.flyTo({ center: [lng, lat], zoom: 15 });
-        
-        // Update form data
-        setFormData(prev => ({ ...prev, lat, lng }));
-        
-        toast({
-          title: "Erfolg",
-          description: "Adresse erfolgreich gefunden und markiert"
-        });
-      } else {
-        toast({
-          title: "Fehler",
-          description: "Adresse konnte nicht gefunden werden",
-          variant: "destructive"
-        });
-      }
-    } catch (error) {
-      console.error('Geocoding error:', error);
-      toast({
-        title: "Fehler",
-        description: "Fehler beim Suchen der Adresse",
-        variant: "destructive"
-      });
-    } finally {
-      setGeocoding(false);
-    }
   };
 
   const handleClose = () => {
@@ -458,44 +410,27 @@ const EventCreateModal: React.FC<EventCreateModalProps> = ({ isOpen, onClose, on
                 Ort auswählen
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="address">Adresse eingeben</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="address"
-                    value={formData.address}
-                    onChange={(e) => handleInputChange('address', e.target.value)}
-                    placeholder="z.B. Musterstraße 1, 12345 Berlin"
-                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), geocodeAddress())}
-                  />
-                  <Button 
-                    type="button" 
-                    onClick={geocodeAddress}
-                    disabled={geocoding || !formData.address.trim()}
-                    variant="outline"
-                  >
-                    {geocoding ? 'Suchen...' : 'Suchen'}
-                  </Button>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Geben Sie eine Adresse ein und klicken Sie "Suchen", um sie auf der Karte zu markieren
-                </p>
-              </div>
-
+            <CardContent>
               <div 
                 ref={mapContainer} 
                 className="w-full h-64 rounded-lg border"
                 style={{ minHeight: '256px', minWidth: '100%' }}
               />
               <p className="text-sm text-muted-foreground mt-2">
-                Klicken Sie auf die Karte, geben Sie oben eine Adresse ein, oder suchen Sie nach einem Ort (oben links auf der Karte) um den Event-Ort festzulegen. 
+                Verwenden Sie die Suchfunktion (oben links) oder klicken Sie auf die Karte, um den Event-Ort festzulegen. 
                 Die Karte zeigt automatisch Ihren aktuellen Standort an.
               </p>
               {formData.lat && formData.lng && (
-                <p className="text-sm text-green-600 mt-1">
-                  Koordinaten: {formData.lat.toFixed(6)}, {formData.lng.toFixed(6)}
-                </p>
+                <div className="space-y-1 mt-2">
+                  <p className="text-sm text-green-600">
+                    Koordinaten: {formData.lat.toFixed(6)}, {formData.lng.toFixed(6)}
+                  </p>
+                  {formData.address && (
+                    <p className="text-sm text-blue-600">
+                      Adresse: {formData.address}
+                    </p>
+                  )}
+                </div>
               )}
             </CardContent>
           </Card>
