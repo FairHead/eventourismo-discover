@@ -136,6 +136,11 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
         const coords: [number, number] = [position.coords.longitude, position.coords.latitude];
         setUserLocation(coords);
         map.current?.flyTo({ center: coords, zoom: 14, duration: 2000 });
+        // Ensure marker exists immediately
+        if (!userMarkerRef.current) {
+          console.log('Creating user location marker (initial)');
+          createUserLocationMarker(coords);
+        }
       },
       (error) => {
         console.warn('Geolocation error:', error);
