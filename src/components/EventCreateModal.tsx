@@ -408,11 +408,8 @@ const EventCreateModal: React.FC<EventCreateModalProps> = ({ isOpen, onClose, on
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
+          <DialogTitle>
             Event erstellen
-            <Button variant="ghost" size="icon" onClick={handleClose}>
-              <X className="h-4 w-4" />
-            </Button>
           </DialogTitle>
         </DialogHeader>
 
