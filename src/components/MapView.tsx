@@ -136,10 +136,15 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
         const coords: [number, number] = [position.coords.longitude, position.coords.latitude];
         setUserLocation(coords);
         
-        // If a focused event is pending (from Search), do NOT override the focus
-        const hasPendingFocus = !!sessionStorage.getItem('focusEventId') && !!sessionStorage.getItem('focusEventData');
-        if (!hasPendingFocus) {
+        // Check if we came from Event Search with a specific event to focus on
+        const hasPendingEventFocus = !!sessionStorage.getItem('focusEventId') && !!sessionStorage.getItem('focusEventData');
+        
+        // Only zoom to user location if we didn't come from Event Search
+        if (!hasPendingEventFocus) {
+          console.log('Direct map access - zooming to user location:', coords);
           map.current?.flyTo({ center: coords, zoom: 14, duration: 2000 });
+        } else {
+          console.log('Event search navigation detected - skipping user location zoom, event focus will handle positioning');
         }
         
         // Ensure marker exists immediately
