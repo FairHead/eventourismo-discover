@@ -103,13 +103,21 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
 
     map.current.on('load', () => {
       setIsMapboxReady(true);
-      onMapReady?.(map.current!);
+      
+      // Ensure map instance is valid before calling callback
+      if (map.current && onMapReady) {
+        onMapReady(map.current);
+      }
       
       // Listen to zoom changes
-      map.current!.on('zoom', () => {
-        const zoom = map.current!.getZoom();
-        setCurrentZoom(zoom);
-      });
+      if (map.current) {
+        map.current.on('zoom', () => {
+          if (map.current) {
+            const zoom = map.current.getZoom();
+            setCurrentZoom(zoom);
+          }
+        });
+      }
     });
 
     return () => {

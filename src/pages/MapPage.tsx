@@ -171,21 +171,37 @@ const MapPage: React.FC = () => {
   };
 
   const handleMapReady = (mapInstance: mapboxgl.Map) => {
+    // Validate that mapInstance is a proper Mapbox GL Map instance
+    if (!mapInstance || typeof mapInstance.on !== 'function') {
+      console.error('Invalid map instance received:', mapInstance);
+      return;
+    }
+
     setMapInstance(mapInstance);
     
     // Update map position when map moves
     const updatePosition = () => {
-      const center = mapInstance.getCenter();
-      const zoom = mapInstance.getZoom();
-      setCurrentMapPosition({ center: [center.lng, center.lat], zoom });
+      if (!mapInstance || typeof mapInstance.getCenter !== 'function') return;
+      
+      try {
+        const center = mapInstance.getCenter();
+        const zoom = mapInstance.getZoom();
+        setCurrentMapPosition({ center: [center.lng, center.lat], zoom });
+      } catch (error) {
+        console.warn('Error updating map position:', error);
+      }
     };
     
-    // Listen for map movements
-    mapInstance.on('moveend', updatePosition);
-    mapInstance.on('zoomend', updatePosition);
-    
-    // Set initial position
-    updatePosition();
+    // Listen for map movements with error handling
+    try {
+      mapInstance.on('moveend', updatePosition);
+      mapInstance.on('zoomend', updatePosition);
+      
+      // Set initial position
+      updatePosition();
+    } catch (error) {
+      console.error('Error setting up map event listeners:', error);
+    }
   };
 
   const calculateRoute = async (destination: [number, number], mode: 'walking' | 'cycling' | 'driving') => {
