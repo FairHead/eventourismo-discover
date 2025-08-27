@@ -75,6 +75,44 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData }) => 
     return colors[genre as keyof typeof colors] || 'bg-primary';
   };
 
+  const getDetailedStatus = (startTime: string, endTime?: string) => {
+    if (!endTime) return "Event";
+    
+    const now = new Date();
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    
+    // Calculate time differences in minutes
+    const minutesToStart = Math.floor((start.getTime() - now.getTime()) / (1000 * 60));
+    const minutesToEnd = Math.floor((end.getTime() - now.getTime()) / (1000 * 60));
+    
+    // Event is currently happening
+    if (now >= start && now <= end) {
+      if (minutesToEnd <= 30) {
+        return "Endet bald";
+      }
+      return "Läuft jetzt";
+    }
+    
+    // Event hasn't started yet
+    if (now < start) {
+      if (minutesToStart <= 15) {
+        return "Beginnt gleich";
+      } else if (minutesToStart <= 60) {
+        return "Beginnt in " + minutesToStart + " Min";
+      } else {
+        const hours = Math.floor(minutesToStart / 60);
+        if (hours < 24) {
+          return "Beginnt in " + hours + "h";
+        }
+        return "Bevorstehendes Event";
+      }
+    }
+    
+    // Event has ended
+    return "Beendet";
+  };
+
   return (
     <>
       {/* Overlay */}
@@ -135,10 +173,23 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData }) => 
 
             {/* Time & Location */}
             <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm">
-                <Clock className="w-4 h-4 text-primary" />
-                <span>{eventData.startTime}</span>
-                {eventData.endTime && <span>- {eventData.endTime}</span>}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm">
+                  <Clock className="w-4 h-4 text-primary" />
+                  <span>{eventData.startTime}</span>
+                  {eventData.endTime && <span>- {eventData.endTime}</span>}
+                </div>
+                <Badge 
+                  variant="secondary" 
+                  className={cn(
+                    "text-xs font-medium",
+                    eventData.status === 'live' && "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+                    eventData.status === 'upcoming' && "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
+                    eventData.status === 'past' && "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400"
+                  )}
+                >
+                  {getDetailedStatus(eventData.startTime, eventData.endTime)}
+                </Badge>
               </div>
               <div className="flex items-start gap-2 text-sm">
                 <MapPin className="w-4 h-4 text-primary mt-0.5" />
