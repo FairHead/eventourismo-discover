@@ -3,8 +3,9 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, Filter, MapPin, Users } from 'lucide-react';
+import { Search, Filter, MapPin, Users, Navigation as NavigationIcon, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import NavigationSystem from './NavigationSystem';
 
 interface MapViewProps {
   onPinClick?: (eventId: string) => void;
@@ -57,6 +58,12 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
   const geoWatchIdRef = useRef<number | null>(null);
   const [userHeading, setUserHeading] = useState<number>(0);
   const [routeLayer, setRouteLayer] = useState<string | null>(null);
+  // Navigation states
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [navigationDestination, setNavigationDestination] = useState<{
+    name: string;
+    coords: [number, number];
+  } | null>(null);
   // Removed Mapbox popup state to avoid duplicate UI
 
   // Fetch Mapbox token from Edge Function
@@ -730,11 +737,92 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
         el.style.zIndex = '100';
       });
 
-      // Click handler - ensure event ID is correctly passed
+      // Click handler - show navigation context menu
       el.addEventListener('click', (e) => {
         e.stopPropagation();
         e.preventDefault();
         console.log('Pin clicked for event:', event.id);
+        
+        // Show navigation context menu
+        const contextMenu = document.createElement('div');
+        contextMenu.style.cssText = `
+          position: absolute;
+          top: 50px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: white;
+          border: 1px solid #ccc;
+          border-radius: 8px;
+          padding: 8px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+          z-index: 1000;
+          min-width: 200px;
+        `;
+        
+        contextMenu.innerHTML = `
+          <div style="font-weight: bold; margin-bottom: 8px; color: #333;">${event.title}</div>
+          <button id="navigate-btn" style="
+            width: 100%;
+            padding: 8px 12px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+          ">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="3,11 22,2 13,21 11,13 3,11"></polygon>
+            </svg>
+            Navigation starten
+          </button>
+          <button id="close-menu-btn" style="
+            width: 100%;
+            padding: 6px 12px;
+            background: transparent;
+            color: #666;
+            border: none;
+            cursor: pointer;
+            font-size: 12px;
+            margin-top: 4px;
+          ">Abbrechen</button>
+        `;
+        
+        el.appendChild(contextMenu);
+        
+        // Navigation button handler
+        const navigateBtn = contextMenu.querySelector('#navigate-btn');
+        const closeBtn = contextMenu.querySelector('#close-menu-btn');
+        
+        navigateBtn?.addEventListener('click', () => {
+          setNavigationDestination({
+            name: event.title,
+            coords: [event.lng, event.lat]
+          });
+          setIsNavigating(true);
+          contextMenu.remove();
+        });
+        
+        closeBtn?.addEventListener('click', () => {
+          contextMenu.remove();
+        });
+        
+        // Close menu when clicking outside
+        const closeOnClickOutside = (e: Event) => {
+          if (!contextMenu.contains(e.target as Node)) {
+            contextMenu.remove();
+            document.removeEventListener('click', closeOnClickOutside);
+          }
+        };
+        
+        setTimeout(() => {
+          document.addEventListener('click', closeOnClickOutside);
+        }, 100);
+        
         if (onPinClick) {
           onPinClick(event.id);
         }
@@ -816,6 +904,18 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
 
     setSearchQuery(placeName);
     setShowSearchResults(false);
+
+    // Offer navigation to searched location
+    setNavigationDestination({
+      name: placeName,
+      coords: coordinates
+    });
+  };
+
+  // Handle navigation end
+  const handleNavigationEnd = () => {
+    setIsNavigating(false);
+    setNavigationDestination(null);
   };
 
   return (
@@ -880,87 +980,149 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
 
       {/* UI Overlay - Higher Z-Index */}
       <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 10 }}>
-        {/* Search & Controls Bar - Centered */}
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex gap-2 pointer-events-auto">
-          <div className="relative" ref={searchContainerRef}>
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" style={{ zIndex: 12 }} />
-            <Input
-              placeholder="Adresse oder Ort suchen..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && searchResults.length > 0) {
-                  const firstResult = searchResults[0];
-                  navigateToLocation(firstResult.center, firstResult.place_name);
+        {/* Search & Controls Bar - Only show when not navigating */}
+        {!isNavigating && (
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex gap-2 pointer-events-auto">
+            <div className="relative" ref={searchContainerRef}>
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" style={{ zIndex: 12 }} />
+              <Input
+                placeholder="Adresse oder Ort suchen..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && searchResults.length > 0) {
+                    const firstResult = searchResults[0];
+                    navigateToLocation(firstResult.center, firstResult.place_name);
+                  }
+                }}
+                className="pl-10 w-64 bg-card/95 backdrop-blur-md border-border shadow-xl"
+                style={{ zIndex: 11 }}
+              />
+              
+              {/* Search Results Dropdown */}
+              {showSearchResults && searchResults.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-card/95 backdrop-blur-md border border-border rounded-lg shadow-xl overflow-hidden" style={{ zIndex: 15 }}>
+                  {searchResults.slice(0, 5).map((result, index) => (
+                    <div
+                      key={index}
+                      className="px-4 py-3 hover:bg-accent cursor-pointer border-b border-border last:border-b-0 flex items-center justify-between"
+                      onClick={() => navigateToLocation(result.center, result.place_name)}
+                    >
+                      <div>
+                        <div className="text-sm font-medium text-foreground">{result.text}</div>
+                        <div className="text-xs text-muted-foreground">{result.place_name}</div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setNavigationDestination({
+                            name: result.place_name,
+                            coords: result.center
+                          });
+                          setIsNavigating(true);
+                          setShowSearchResults(false);
+                        }}
+                      >
+                        <NavigationIcon className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <Button 
+              variant="secondary" 
+              size="icon" 
+              className="bg-card/95 backdrop-blur-md border-border shadow-xl"
+              style={{ zIndex: 11 }}
+            >
+              <Filter className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="secondary"
+              size="icon"
+              className="bg-card/95 backdrop-blur-md border-border shadow-xl"
+              style={{ zIndex: 11 }}
+              onClick={() => {
+                if (userLocation && map.current) {
+                  map.current.flyTo({
+                    center: userLocation,
+                    zoom: 14,
+                    duration: 1000
+                  });
                 }
               }}
-              className="pl-10 w-64 bg-card/95 backdrop-blur-md border-border shadow-xl"
-              style={{ zIndex: 11 }}
-            />
-            
-            {/* Search Results Dropdown */}
-            {showSearchResults && searchResults.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-card/95 backdrop-blur-md border border-border rounded-lg shadow-xl overflow-hidden" style={{ zIndex: 15 }}>
-                {searchResults.slice(0, 5).map((result, index) => (
-                  <div
-                    key={index}
-                    className="px-4 py-3 hover:bg-accent cursor-pointer border-b border-border last:border-b-0"
-                    onClick={() => navigateToLocation(result.center, result.place_name)}
+            >
+              <MapPin className="w-4 h-4" />
+            </Button>
+          </div>
+        )}
+
+        {/* Navigation Start Button - Show when destination is selected but not navigating */}
+        {navigationDestination && !isNavigating && (
+          <div className="absolute top-4 left-4 right-4 pointer-events-auto">
+            <div className="bg-card/95 backdrop-blur-md border border-border rounded-lg p-3 shadow-xl">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium">Navigation zu:</div>
+                  <div className="text-lg font-semibold">{navigationDestination.name}</div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => setIsNavigating(true)}
+                    size="sm"
                   >
-                    <div className="text-sm font-medium text-foreground">{result.text}</div>
-                    <div className="text-xs text-muted-foreground">{result.place_name}</div>
-                  </div>
-                ))}
+                    <NavigationIcon className="w-4 h-4 mr-2" />
+                    Starten
+                  </Button>
+                  <Button
+                    onClick={() => setNavigationDestination(null)}
+                    variant="ghost"
+                    size="sm"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+      {/* Stats Overlay - Only show when not navigating */}
+      {!isNavigating && (
+        <div className="absolute bottom-4 left-4 pointer-events-auto">
+          <div className="bg-card/95 backdrop-blur-md border border-border rounded-lg p-3 shadow-xl" style={{ zIndex: 11 }}>
+            <div className="flex items-center gap-2 text-sm">
+              <Users className="w-4 h-4 text-primary" />
+              <span className="text-muted-foreground">
+                {currentZoom >= 12 
+                  ? `${events.length} Events in der Nähe`
+                  : `${events.length} Events • Zoom: ${currentZoom.toFixed(1)}`
+                }
+              </span>
+            </div>
+            {currentZoom < 12 && (
+              <div className="text-xs text-muted-foreground mt-1">
+                Zoom rein für Einzelevents
               </div>
             )}
           </div>
-          <Button 
-            variant="secondary" 
-            size="icon" 
-            className="bg-card/95 backdrop-blur-md border-border shadow-xl"
-            style={{ zIndex: 11 }}
-          >
-            <Filter className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="secondary"
-            size="icon"
-            className="bg-card/95 backdrop-blur-md border-border shadow-xl"
-            style={{ zIndex: 11 }}
-            onClick={() => {
-              if (userLocation && map.current) {
-                map.current.flyTo({
-                  center: userLocation,
-                  zoom: 14,
-                  duration: 1000
-                });
-              }
-            }}
-          >
-            <MapPin className="w-4 h-4" />
-          </Button>
         </div>
+      )}
+      </div>
 
-      {/* Stats Overlay */}
-      <div className="absolute bottom-4 left-4 pointer-events-auto">
-        <div className="bg-card/95 backdrop-blur-md border border-border rounded-lg p-3 shadow-xl" style={{ zIndex: 11 }}>
-          <div className="flex items-center gap-2 text-sm">
-            <Users className="w-4 h-4 text-primary" />
-            <span className="text-muted-foreground">
-              {currentZoom >= 12 
-                ? `${events.length} Events in der Nähe`
-                : `${events.length} Events • Zoom: ${currentZoom.toFixed(1)}`
-              }
-            </span>
-          </div>
-          {currentZoom < 12 && (
-            <div className="text-xs text-muted-foreground mt-1">
-              Zoom rein für Einzelevents
-            </div>
-          )}
-        </div>
-      </div>
-      </div>
+      {/* Navigation System */}
+      {isNavigating && navigationDestination && (
+        <NavigationSystem
+          map={map.current}
+          userLocation={userLocation}
+          destinationName={navigationDestination.name}
+          destinationCoords={navigationDestination.coords}
+          onNavigationEnd={handleNavigationEnd}
+        />
+      )}
 
       {/* Mapbox Token Error/Warning */}
       {(tokenError || !mapboxToken) && (
