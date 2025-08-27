@@ -132,7 +132,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
   }, [events, isMapboxReady]);
 
   // Helper function to determine event status
-  const getEventStatus = (startUtc: string, endUtc: string): 'live' | 'today' | 'upcoming' | 'past' => {
+  const getEventStatus = (startUtc: string, endUtc: string): 'live' | 'today' | 'upcoming' | 'finished' | 'past' => {
     const now = new Date();
     const start = new Date(startUtc);
     const end = new Date(endUtc);
@@ -144,8 +144,12 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     // Check if event is currently happening
     if (now >= start && now <= end) return 'live';
     
-    // Check if event is in the past
-    if (end < now) return 'past';
+    // Check if event finished but less than 3 hours ago
+    const threeHoursAfterEnd = new Date(end.getTime() + (3 * 60 * 60 * 1000)); // 3 hours in milliseconds
+    if (now > end && now <= threeHoursAfterEnd) return 'finished';
+    
+    // Check if event is more than 3 hours past - should be removed
+    if (now > threeHoursAfterEnd) return 'past';
     
     // Check if event starts today
     if (start >= today && start < tomorrow) return 'today';
@@ -202,6 +206,8 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
         inner.style.border = '3px solid #22c55e'; // Green border
         inner.style.animation = 'eventPulse 2s infinite';
         inner.classList.add('event-live-pulse');
+      } else if (status === 'finished') {
+        inner.style.border = '3px solid #ef4444'; // Red border for finished events
       } else if (status === 'today') {
         inner.style.border = '3px solid #eab308'; // Yellow border
       } else {
