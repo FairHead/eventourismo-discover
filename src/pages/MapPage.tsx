@@ -271,21 +271,44 @@ const MapPage: React.FC = () => {
 };
 
 // Helper function to determine event status
-function getEventStatus(startUtc: string, endUtc: string): 'live' | 'ending_soon' | 'upcoming' | 'past' {
+function getEventStatus(startUtc: string, endUtc: string): 'upcoming' | 'starting_soon' | 'live' | 'ending_soon' | 'finished' | 'past' {
   const now = new Date();
   const start = new Date(startUtc);
   const end = new Date(endUtc);
 
-  if (now < start) return 'upcoming';
-  if (now > end) return 'past';
-  
-  // Event is currently happening - check if ending soon
+  // Calculate time differences in minutes
+  const minutesToStart = Math.floor((start.getTime() - now.getTime()) / (1000 * 60));
   const minutesToEnd = Math.floor((end.getTime() - now.getTime()) / (1000 * 60));
-  if (minutesToEnd <= 30) {
-    return 'ending_soon';
+  const minutesSinceEnd = Math.floor((now.getTime() - end.getTime()) / (1000 * 60));
+
+  // Event hasn't started yet
+  if (now < start) {
+    // 3 hours before start = 180 minutes
+    if (minutesToStart <= 180) {
+      return 'starting_soon'; // Orange - beginnt bald
+    }
+    return 'upcoming'; // Blue - bevorstehend
   }
   
-  return 'live';
+  // Event is currently happening
+  if (now >= start && now <= end) {
+    // 5 minutes before end
+    if (minutesToEnd <= 5) {
+      return 'ending_soon'; // Yellow - endet bald
+    }
+    return 'live'; // Green - läuft gerade
+  }
+  
+  // Event has ended
+  if (now > end) {
+    // 3 hours after end = 180 minutes
+    if (minutesSinceEnd <= 180) {
+      return 'finished'; // Red - beendet
+    }
+    return 'past'; // Should be removed from map
+  }
+  
+  return 'upcoming';
 }
 
 export default MapPage;

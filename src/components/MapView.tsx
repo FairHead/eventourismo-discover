@@ -146,36 +146,43 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
   }, [events, isMapboxReady]);
 
   // Helper function to determine event status
-  const getEventStatus = (startUtc: string, endUtc: string): 'live' | 'ending_soon' | 'today' | 'upcoming' | 'finished' | 'past' => {
+  const getEventStatus = (startUtc: string, endUtc: string): 'upcoming' | 'starting_soon' | 'live' | 'ending_soon' | 'finished' | 'past' => {
     const now = new Date();
     const start = new Date(startUtc);
     const end = new Date(endUtc);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
 
-    // Check if event is currently happening
-    if (now >= start && now <= end) {
-      // Check if event ends within 30 minutes
-      const minutesToEnd = Math.floor((end.getTime() - now.getTime()) / (1000 * 60));
-      if (minutesToEnd <= 30) {
-        return 'ending_soon';
+    // Calculate time differences in minutes
+    const minutesToStart = Math.floor((start.getTime() - now.getTime()) / (1000 * 60));
+    const minutesToEnd = Math.floor((end.getTime() - now.getTime()) / (1000 * 60));
+    const minutesSinceEnd = Math.floor((now.getTime() - end.getTime()) / (1000 * 60));
+
+    // Event hasn't started yet
+    if (now < start) {
+      // 3 hours before start = 180 minutes
+      if (minutesToStart <= 180) {
+        return 'starting_soon'; // Orange - beginnt bald
       }
-      return 'live';
+      return 'upcoming'; // Blue - bevorstehend
     }
     
-    // Check if event finished but less than 3 hours ago
-    const threeHoursAfterEnd = new Date(end.getTime() + (3 * 60 * 60 * 1000)); // 3 hours in milliseconds
-    if (now > end && now <= threeHoursAfterEnd) return 'finished';
+    // Event is currently happening
+    if (now >= start && now <= end) {
+      // 5 minutes before end
+      if (minutesToEnd <= 5) {
+        return 'ending_soon'; // Yellow - endet bald
+      }
+      return 'live'; // Green - läuft gerade
+    }
     
-    // Check if event is more than 3 hours past - should be removed
-    if (now > threeHoursAfterEnd) return 'past';
+    // Event has ended
+    if (now > end) {
+      // 3 hours after end = 180 minutes
+      if (minutesSinceEnd <= 180) {
+        return 'finished'; // Red - beendet
+      }
+      return 'past'; // Should be removed from map
+    }
     
-    // Check if event starts today
-    if (start >= today && start < tomorrow) return 'today';
-    
-    // Event is in the future
     return 'upcoming';
   };
 
@@ -232,20 +239,20 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       inner.textContent = '🎵';
 
       // Set border based on status
-      if (status === 'live') {
-        inner.style.border = '3px solid #22c55e'; // Green border
+      if (status === 'upcoming') {
+        inner.style.border = '2px solid #3b82f6'; // Blue border - bevorstehend
+      } else if (status === 'starting_soon') {
+        inner.style.border = '3px solid #f97316'; // Orange border - beginnt bald
+        inner.style.animation = 'eventPulseOrange 2s infinite';
+      } else if (status === 'live') {
+        inner.style.border = '3px solid #22c55e'; // Green border - läuft gerade
         inner.style.animation = 'eventPulse 2s infinite';
       } else if (status === 'ending_soon') {
-        inner.style.border = '3px solid #f97316'; // Orange border for ending soon
-        inner.style.animation = 'eventPulseOrange 2s infinite';
-      } else if (status === 'finished') {
-        inner.style.border = '3px solid #ef4444'; // Red border for finished events
-        inner.style.animation = 'eventPulseRed 2s infinite';
-      } else if (status === 'today') {
-        inner.style.border = '3px solid #eab308'; // Yellow border
+        inner.style.border = '3px solid #eab308'; // Yellow border - endet bald
         inner.style.animation = 'eventPulseYellow 2s infinite';
-      } else {
-        inner.style.border = '2px solid #3b82f6'; // Blue border for upcoming
+      } else if (status === 'finished') {
+        inner.style.border = '3px solid #ef4444'; // Red border - beendet
+        inner.style.animation = 'eventPulseRed 2s infinite';
       }
 
       el.appendChild(inner);

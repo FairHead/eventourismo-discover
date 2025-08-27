@@ -24,7 +24,7 @@ interface EventData {
   title: string;
   subtitle: string;
   type: 'event' | 'venue';
-  status: 'live' | 'ending_soon' | 'upcoming' | 'past';
+  status: 'upcoming' | 'starting_soon' | 'live' | 'ending_soon' | 'finished' | 'past';
   startTime: string;
   endTime?: string;
   location: string;
@@ -55,17 +55,21 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData, onEdi
 
   const getStatusBadge = (status: string) => {
     const variants = {
-      live: 'bg-live text-live-foreground',
-      ending_soon: 'bg-orange-500 text-white',
-      upcoming: 'bg-upcoming text-upcoming-foreground', 
-      past: 'bg-past text-past-foreground'
+      upcoming: 'bg-blue-500 text-white',
+      starting_soon: 'bg-orange-500 text-white',
+      live: 'bg-green-500 text-white',
+      ending_soon: 'bg-yellow-500 text-black',
+      finished: 'bg-red-500 text-white',
+      past: 'bg-gray-500 text-white'
     };
 
     const labels = {
-      live: 'LIVE',
+      upcoming: 'BEVORSTEHEND',
+      starting_soon: 'BEGINNT BALD',
+      live: 'LÄUFT GERADE',
       ending_soon: 'ENDET BALD',
-      upcoming: 'Bevorstehend',
-      past: 'Vergangen'
+      finished: 'BEENDET',
+      past: 'VERGANGEN'
     };
 
     return (
@@ -96,32 +100,45 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData, onEdi
     // Calculate time differences in minutes
     const minutesToStart = Math.floor((start.getTime() - now.getTime()) / (1000 * 60));
     const minutesToEnd = Math.floor((end.getTime() - now.getTime()) / (1000 * 60));
-    
-    // Event is currently happening
-    if (now >= start && now <= end) {
-      if (minutesToEnd <= 30) {
-        return "Endet bald";
-      }
-      return "Läuft jetzt";
-    }
+    const minutesSinceEnd = Math.floor((now.getTime() - end.getTime()) / (1000 * 60));
     
     // Event hasn't started yet
     if (now < start) {
-      if (minutesToStart <= 15) {
-        return "Beginnt gleich";
-      } else if (minutesToStart <= 60) {
-        return "Beginnt in " + minutesToStart + " Min";
-      } else {
+      if (minutesToStart <= 180) { // 3 hours
         const hours = Math.floor(minutesToStart / 60);
-        if (hours < 24) {
-          return "Beginnt in " + hours + "h";
+        if (hours >= 1) {
+          return `Beginnt in ${hours}h`;
         }
-        return "Bevorstehendes Event";
+        return `Beginnt in ${minutesToStart} Min`;
       }
+      return "Bevorstehendes Event";
+    }
+    
+    // Event is currently happening
+    if (now >= start && now <= end) {
+      if (minutesToEnd <= 5) {
+        return "Endet in wenigen Minuten";
+      }
+      const hours = Math.floor(minutesToEnd / 60);
+      if (hours >= 1) {
+        return `Läuft noch ${hours}h`;
+      }
+      return `Läuft noch ${minutesToEnd} Min`;
     }
     
     // Event has ended
-    return "Beendet";
+    if (now > end) {
+      if (minutesSinceEnd <= 180) { // 3 hours
+        const hours = Math.floor(minutesSinceEnd / 60);
+        if (hours >= 1) {
+          return `Beendet vor ${hours}h`;
+        }
+        return `Beendet vor ${minutesSinceEnd} Min`;
+      }
+      return "Beendet";
+    }
+    
+    return "Event";
   };
 
   return (
@@ -144,14 +161,23 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData, onEdi
         <div className="sticky top-0 bg-card/98 backdrop-blur-md border-b border-border p-4 flex items-center justify-between z-10">
           <div className="flex items-center gap-2">
             {getStatusBadge(eventData.status)}
-            {(eventData.status === 'live' || eventData.status === 'ending_soon') && (
+            {(['starting_soon', 'live', 'ending_soon', 'finished'].includes(eventData.status)) && (
               <div className={`flex items-center gap-1 text-sm animate-pulse ${
-                eventData.status === 'ending_soon' ? 'text-orange-500' : 'text-live'
+                eventData.status === 'starting_soon' ? 'text-orange-500' :
+                eventData.status === 'live' ? 'text-green-500' :
+                eventData.status === 'ending_soon' ? 'text-yellow-600' :
+                eventData.status === 'finished' ? 'text-red-500' : ''
               }`}>
                 <div className={`w-2 h-2 rounded-full ${
-                  eventData.status === 'ending_soon' ? 'bg-orange-500' : 'bg-live'
+                  eventData.status === 'starting_soon' ? 'bg-orange-500' :
+                  eventData.status === 'live' ? 'bg-green-500' :
+                  eventData.status === 'ending_soon' ? 'bg-yellow-500' :
+                  eventData.status === 'finished' ? 'bg-red-500' : ''
                 }`}></div>
-                {eventData.status === 'ending_soon' ? 'ENDET BALD' : 'LÄUFT JETZT'}
+                {eventData.status === 'starting_soon' ? 'BEGINNT BALD' :
+                 eventData.status === 'live' ? 'LÄUFT GERADE' :
+                 eventData.status === 'ending_soon' ? 'ENDET BALD' :
+                 eventData.status === 'finished' ? 'BEENDET' : ''}
               </div>
             )}
           </div>
@@ -250,9 +276,11 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData, onEdi
                   variant="secondary" 
                   className={cn(
                     "text-xs font-medium",
-                    eventData.status === 'live' && "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-                    eventData.status === 'ending_soon' && "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400",
                     eventData.status === 'upcoming' && "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
+                    eventData.status === 'starting_soon' && "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400",
+                    eventData.status === 'live' && "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+                    eventData.status === 'ending_soon' && "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
+                    eventData.status === 'finished' && "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
                     eventData.status === 'past' && "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400"
                   )}
                 >
