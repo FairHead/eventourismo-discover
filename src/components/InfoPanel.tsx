@@ -184,6 +184,7 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData, onEdi
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex flex-col gap-1 text-sm">
+                  {/* Start Date & Time */}
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-primary" />
                     <span className="font-medium">
@@ -201,13 +202,41 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData, onEdi
                       hour: '2-digit', 
                       minute: '2-digit' 
                     })}</span>
-                    {eventData.endTime && (
-                      <span>- {new Date(eventData.endTime).toLocaleTimeString('de-DE', { 
-                        hour: '2-digit', 
-                        minute: '2-digit' 
-                      })}</span>
-                    )}
                   </div>
+                  
+                  {/* End Date & Time */}
+                  {eventData.endTime && (() => {
+                    const startDate = new Date(eventData.startTime).toDateString();
+                    const endDate = new Date(eventData.endTime).toDateString();
+                    const isMultiDay = startDate !== endDate;
+                    
+                    return (
+                      <>
+                        {isMultiDay && (
+                          <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border">
+                            <Calendar className="w-4 h-4 text-secondary" />
+                            <span className="font-medium text-secondary">
+                              {new Date(eventData.endTime).toLocaleDateString('de-DE', {
+                                weekday: 'short',
+                                year: 'numeric',
+                                month: 'short', 
+                                day: 'numeric'
+                              })}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 ml-6">
+                          <Clock className="w-4 h-4 text-secondary" />
+                          <span className="text-secondary">
+                            bis {new Date(eventData.endTime).toLocaleTimeString('de-DE', { 
+                              hour: '2-digit', 
+                              minute: '2-digit' 
+                            })}
+                          </span>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
                 <Badge 
                   variant="secondary" 
