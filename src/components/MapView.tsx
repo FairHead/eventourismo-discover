@@ -40,6 +40,7 @@ interface EventData {
 const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = false }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
   const [isMapboxReady, setIsMapboxReady] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -261,6 +262,20 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     return () => clearTimeout(timeoutId);
   }, [searchQuery, mapboxToken]);
 
+  // Close search results when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+        setShowSearchResults(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   // Navigate to selected location
   const navigateToLocation = (coordinates: [number, number], placeName: string) => {
     if (!map.current) return;
@@ -284,7 +299,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 10 }}>
         {/* Search & Controls Bar - Centered */}
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex gap-2 pointer-events-auto">
-          <div className="relative">
+          <div className="relative" ref={searchContainerRef}>
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" style={{ zIndex: 12 }} />
             <Input
               placeholder="Adresse oder Ort suchen..."
