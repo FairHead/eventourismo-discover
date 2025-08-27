@@ -132,14 +132,26 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
   }, [events, isMapboxReady]);
 
   // Helper function to determine event status
-  const getEventStatus = (startUtc: string, endUtc: string): 'live' | 'upcoming' | 'past' => {
+  const getEventStatus = (startUtc: string, endUtc: string): 'live' | 'today' | 'upcoming' | 'past' => {
     const now = new Date();
     const start = new Date(startUtc);
     const end = new Date(endUtc);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
 
-    if (now < start) return 'upcoming';
-    if (now > end) return 'past';
-    return 'live';
+    // Check if event is currently happening
+    if (now >= start && now <= end) return 'live';
+    
+    // Check if event is in the past
+    if (end < now) return 'past';
+    
+    // Check if event starts today
+    if (start >= today && start < tomorrow) return 'today';
+    
+    // Event is in the future
+    return 'upcoming';
   };
 
   const clearMarkers = () => {
@@ -154,7 +166,13 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     clearMarkers();
     const newMarkers: mapboxgl.Marker[] = [];
 
-    events.forEach((event) => {
+    // Filter out past events
+    const activeEvents = events.filter(event => {
+      const status = getEventStatus(event.start_utc, event.end_utc);
+      return status !== 'past';
+    });
+
+    activeEvents.forEach((event) => {
       const status = getEventStatus(event.start_utc, event.end_utc);
       
       // Create marker with inner content to avoid overriding Mapbox transforms
@@ -172,21 +190,22 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       inner.style.justifyContent = 'center';
       inner.style.fontSize = '16px';
       inner.style.userSelect = 'none';
-      inner.style.border = '2px solid white';
+      inner.style.backgroundColor = 'white';
       inner.style.boxShadow = '0 2px 10px rgba(0,0,0,0.3)';
       inner.style.transition = 'transform 0.2s ease';
       inner.style.transformOrigin = 'center center';
       inner.style.willChange = 'transform';
       inner.textContent = '🎵';
 
-      // Set background color based on status
+      // Set border based on status
       if (status === 'live') {
-        inner.style.backgroundColor = '#ef4444';
-        inner.style.animation = 'pulse 2s infinite';
-      } else if (status === 'upcoming') {
-        inner.style.backgroundColor = '#3b82f6';
+        inner.style.border = '3px solid #22c55e'; // Green border
+        inner.style.animation = 'eventPulse 2s infinite';
+        inner.classList.add('event-live-pulse');
+      } else if (status === 'today') {
+        inner.style.border = '3px solid #eab308'; // Yellow border
       } else {
-        inner.style.backgroundColor = '#6b7280';
+        inner.style.border = '2px solid #3b82f6'; // Blue border for upcoming
       }
 
       el.appendChild(inner);
@@ -219,8 +238,6 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       })
         .setLngLat([event.lng, event.lat])
         .addTo(map.current!);
-      
-      newMarkers.push(marker);
       
       newMarkers.push(marker);
     });
@@ -292,6 +309,22 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
 
   return (
     <div className="relative w-full h-screen">
+      {/* Add CSS for pulse animation */}
+      <style>{`
+        @keyframes eventPulse {
+          0% {
+            border-color: #22c55e;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3), 0 0 0 0 rgba(34, 197, 94, 0.7);
+          }
+          70% {
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3), 0 0 0 10px rgba(34, 197, 94, 0);
+          }
+          100% {
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3), 0 0 0 0 rgba(34, 197, 94, 0);
+          }
+        }
+      `}</style>
+      
       {/* Map Container - Lower Z-Index */}
       <div ref={mapContainer} className="absolute inset-0 rounded-lg" style={{ zIndex: 1 }} />
 
