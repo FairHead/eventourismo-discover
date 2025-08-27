@@ -453,9 +453,12 @@ const Search: React.FC = () => {
             const isFavorite = favorites.has(event.id);
             
             return (
-              <Card key={event.id} className="overflow-hidden border border-border/50 hover:border-primary/50 transition-all duration-300 hover:shadow-lg">
-                <CardContent className="p-0">
-                  <div className="flex">
+              <Card key={event.id} className="overflow-hidden border border-border/50 hover:border-primary/50 transition-all duration-300 hover:shadow-lg group cursor-pointer">
+                <CardContent className="p-0 relative">
+                  <div 
+                    className="flex hover:bg-accent/50 transition-colors duration-200"
+                    onClick={() => navigateToEvent(event)}
+                  >
                     {/* Event Avatar/Image */}
                     <div className="flex-shrink-0 w-20 h-20 bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
                       {event.bands?.avatar_url ? (
@@ -528,53 +531,22 @@ const Search: React.FC = () => {
                         </div>
 
                         {/* Action Buttons */}
-                        <div className="flex flex-col gap-2">
+                        <div className="flex flex-col gap-2 relative z-10">
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => toggleFavorite(event.id)}
-                            className="h-8 w-8 p-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleFavorite(event.id);
+                            }}
+                            className="h-8 w-8 p-0 bg-background/80 backdrop-blur-sm hover:bg-accent"
                           >
                             <Heart 
                               className={`h-4 w-4 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-muted-foreground'}`} 
                             />
                           </Button>
-                          
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => navigateToEvent(event)}
-                            className="h-8 w-8 p-0"
-                          >
-                            <MapPin className="h-4 w-4" />
-                          </Button>
                         </div>
                       </div>
-                    </div>
-                  </div>
-
-                  {/* Click area to navigate to map */}
-                  <div 
-                    className="absolute inset-0 cursor-pointer z-0"
-                    onClick={() => navigateToEvent(event)}
-                  />
-                  
-                  {/* Buttons need higher z-index */}
-                  <div className="absolute top-4 right-4 z-10">
-                    <div className="flex flex-col gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleFavorite(event.id);
-                        }}
-                        className="h-8 w-8 p-0 bg-background/80 backdrop-blur-sm"
-                      >
-                        <Heart 
-                          className={`h-4 w-4 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-muted-foreground'}`} 
-                        />
-                      </Button>
                     </div>
                   </div>
                 </CardContent>
