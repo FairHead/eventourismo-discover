@@ -205,7 +205,6 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       el.setAttribute('data-event-id', event.id);
       el.style.cursor = 'pointer';
       el.style.zIndex = '100';
-      el.style.position = 'relative';
 
       const inner = document.createElement('div');
       inner.style.width = '32px';
