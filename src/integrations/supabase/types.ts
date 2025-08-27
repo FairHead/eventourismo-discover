@@ -86,13 +86,6 @@ export type Database = {
             foreignKeyName: "artist_profiles_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: true
-            referencedRelation: "user_public_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "artist_profiles_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -332,13 +325,6 @@ export type Database = {
             foreignKeyName: "events_organizer_id_fkey"
             columns: ["organizer_id"]
             isOneToOne: false
-            referencedRelation: "user_public_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "events_organizer_id_fkey"
-            columns: ["organizer_id"]
-            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -371,13 +357,6 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "favorites_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_public_profiles"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "favorites_user_id_fkey"
             columns: ["user_id"]
@@ -423,13 +402,6 @@ export type Database = {
             foreignKeyName: "notifications_subscriptions_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: true
-            referencedRelation: "user_public_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "notifications_subscriptions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -468,13 +440,6 @@ export type Database = {
             foreignKeyName: "ratings_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "user_public_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ratings_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -509,13 +474,6 @@ export type Database = {
           target_type?: Database["public"]["Enums"]["target_type"]
         }
         Relationships: [
-          {
-            foreignKeyName: "reports_reporter_id_fkey"
-            columns: ["reporter_id"]
-            isOneToOne: false
-            referencedRelation: "user_public_profiles"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "reports_reporter_id_fkey"
             columns: ["reporter_id"]
@@ -642,13 +600,6 @@ export type Database = {
             foreignKeyName: "venues_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "user_public_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "venues_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -656,39 +607,7 @@ export type Database = {
       }
     }
     Views: {
-      user_public_profiles: {
-        Row: {
-          avatar_url: string | null
-          bio: string | null
-          city: string | null
-          country: string | null
-          created_at: string | null
-          display_name: string | null
-          id: string | null
-          role: Database["public"]["Enums"]["user_role"] | null
-        }
-        Insert: {
-          avatar_url?: string | null
-          bio?: string | null
-          city?: string | null
-          country?: string | null
-          created_at?: string | null
-          display_name?: string | null
-          id?: string | null
-          role?: Database["public"]["Enums"]["user_role"] | null
-        }
-        Update: {
-          avatar_url?: string | null
-          bio?: string | null
-          city?: string | null
-          country?: string | null
-          created_at?: string | null
-          display_name?: string | null
-          id?: string | null
-          role?: Database["public"]["Enums"]["user_role"] | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       generate_band_slug: {
@@ -698,6 +617,19 @@ export type Database = {
       get_current_user_role: {
         Args: Record<PropertyKey, never>
         Returns: Database["public"]["Enums"]["user_role"]
+      }
+      get_user_public_profile: {
+        Args: { user_id: string }
+        Returns: {
+          avatar_url: string
+          bio: string
+          city: string
+          country: string
+          created_at: string
+          display_name: string
+          id: string
+          role: Database["public"]["Enums"]["user_role"]
+        }[]
       }
       user_can_manage_band: {
         Args: { _band_id: string; _uid: string }
