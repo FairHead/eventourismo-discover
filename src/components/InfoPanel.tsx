@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -14,7 +14,11 @@ import {
   Star,
   Users,
   Edit,
-  Trash2
+  Trash2,
+  Navigation,
+  Car,
+  Bike,
+  UserCheck
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -45,10 +49,65 @@ interface InfoPanelProps {
   eventData?: EventData;
   onEdit?: (eventId: string) => void;
   onDelete?: (eventId: string) => void;
+  onCalculateRoute?: (destination: [number, number], mode: 'walking' | 'cycling' | 'driving') => Promise<any>;
+  userLocation?: [number, number] | null;
 }
 
-const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData, onEdit, onDelete }) => {
+const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData, onEdit, onDelete, onCalculateRoute, userLocation }) => {
+  const [routeInfo, setRouteInfo] = useState<{
+    duration: number;
+    distance: number;
+    mode: string;
+  } | null>(null);
+  const [loadingRoute, setLoadingRoute] = useState<string | null>(null);
+
   if (!eventData) return null;
+
+  const handleRouteCalculation = async (mode: 'walking' | 'cycling' | 'driving') => {
+    if (!onCalculateRoute || !userLocation) return;
+    
+    // Parse location coordinates from eventData
+    const coords = eventData.location.split(', ').map(Number);
+    if (coords.length !== 2 || coords.some(isNaN)) {
+      console.warn('Invalid event coordinates');
+      return;
+    }
+    
+    const destination: [number, number] = [coords[1], coords[0]]; // lng, lat format
+    
+    setLoadingRoute(mode);
+    try {
+      const result = await onCalculateRoute(destination, mode);
+      if (result) {
+        setRouteInfo({
+          duration: result.duration,
+          distance: result.distance,
+          mode: mode
+        });
+      }
+    } catch (error) {
+      console.error('Route calculation failed:', error);
+    } finally {
+      setLoadingRoute(null);
+    }
+  };
+
+  const formatDuration = (seconds: number): string => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+    return `${minutes}m`;
+  };
+
+  const formatDistance = (meters: number): string => {
+    if (meters >= 1000) {
+      return `${(meters / 1000).toFixed(1)} km`;
+    }
+    return `${Math.round(meters)} m`;
+  };
 
   const { user } = useAuth();
   const isEventCreator = user && eventData.organizerId === user.id;
@@ -368,6 +427,62 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData, onEdi
                 </div>
               </div>
             </>
+          )}
+
+          {/* Navigation & Route */}
+          {userLocation && (
+            <div className="space-y-3">
+              <Separator />
+              <div className="space-y-2">
+                <h3 className="font-semibold text-sm">Navigation</h3>
+                
+                {routeInfo && (
+                  <div className="bg-accent/20 rounded-lg p-3 mb-2">
+                    <div className="flex items-center gap-2 text-sm">
+                      {routeInfo.mode === 'walking' && <UserCheck className="w-4 h-4" />}
+                      {routeInfo.mode === 'cycling' && <Bike className="w-4 h-4" />}
+                      {routeInfo.mode === 'driving' && <Car className="w-4 h-4" />}
+                      <span className="font-medium">
+                        {formatDistance(routeInfo.distance)} • {formatDuration(routeInfo.duration)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="grid grid-cols-3 gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    disabled={loadingRoute === 'walking'}
+                    onClick={() => handleRouteCalculation('walking')}
+                    className="flex items-center gap-1"
+                  >
+                    <UserCheck className="w-3 h-3" />
+                    {loadingRoute === 'walking' ? '...' : 'Zu Fuß'}
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    disabled={loadingRoute === 'cycling'}
+                    onClick={() => handleRouteCalculation('cycling')}
+                    className="flex items-center gap-1"
+                  >
+                    <Bike className="w-3 h-3" />
+                    {loadingRoute === 'cycling' ? '...' : 'Fahrrad'}
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    disabled={loadingRoute === 'driving'}
+                    onClick={() => handleRouteCalculation('driving')}
+                    className="flex items-center gap-1"
+                  >
+                    <Car className="w-3 h-3" />
+                    {loadingRoute === 'driving' ? '...' : 'Auto'}
+                  </Button>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* Links */}

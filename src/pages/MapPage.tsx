@@ -50,6 +50,7 @@ const MapPage: React.FC = () => {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteEventId, setDeleteEventId] = useState<string | null>(null);
   const [currentMapPosition, setCurrentMapPosition] = useState<{center: [number, number], zoom: number} | null>(null);
+  const [mapInstance, setMapInstance] = useState<mapboxgl.Map | null>(null);
   const { user } = useAuth();
 
   const fetchEvents = async () => {
@@ -170,6 +171,8 @@ const MapPage: React.FC = () => {
   };
 
   const handleMapReady = (mapInstance: mapboxgl.Map) => {
+    setMapInstance(mapInstance);
+    
     // Update map position when map moves
     const updatePosition = () => {
       const center = mapInstance.getCenter();
@@ -185,6 +188,128 @@ const MapPage: React.FC = () => {
     updatePosition();
   };
 
+  const calculateRoute = async (destination: [number, number], mode: 'walking' | 'cycling' | 'driving') => {
+    if (!currentMapPosition || !mapInstance) {
+      throw new Error('Map not ready');
+    }
+
+    const userLocation = currentMapPosition.center;
+    
+    try {
+      // Get Mapbox token
+      const { data: tokenData, error } = await supabase.functions.invoke('get-mapbox-token');
+      if (error) throw error;
+
+      const profile = mode === 'cycling' ? 'cycling' : 
+                    mode === 'walking' ? 'walking' : 'driving';
+      
+      const response = await fetch(
+        `https://api.mapbox.com/directions/v5/mapbox/${profile}/${userLocation[0]},${userLocation[1]};${destination[0]},${destination[1]}?` +
+        `steps=true&geometries=geojson&access_token=${tokenData.token}&language=de`
+      );
+
+      if (!response.ok) throw new Error('Route calculation failed');
+
+      const data = await response.json();
+      
+      if (data.routes && data.routes.length > 0) {
+        const route = data.routes[0];
+        
+        // Display route on map
+        displayRoute(route);
+        
+        // Fit map to show entire route
+        const coordinates = route.geometry.coordinates;
+        const bounds = coordinates.reduce((bounds: mapboxgl.LngLatBounds, coord: [number, number]) => {
+          return bounds.extend(coord);
+        }, new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]));
+        
+        mapInstance.fitBounds(bounds, { padding: 50 });
+        
+        return {
+          duration: route.duration,
+          distance: route.distance,
+          steps: route.legs[0]?.steps || []
+        };
+      }
+    } catch (error) {
+      console.error('Route calculation error:', error);
+      throw error;
+    }
+  };
+
+  const displayRoute = (route: any) => {
+    if (!mapInstance) return;
+
+    // Remove existing route
+    clearRoute();
+
+    const routeId = 'route-' + Date.now();
+
+    // Add route source
+    mapInstance.addSource(routeId, {
+      type: 'geojson',
+      data: {
+        type: 'Feature',
+        properties: {},
+        geometry: route.geometry
+      }
+    });
+
+    // Add route outline for better visibility
+    mapInstance.addLayer({
+      id: routeId + '-outline',
+      type: 'line',
+      source: routeId,
+      layout: {
+        'line-join': 'round',
+        'line-cap': 'round'
+      },
+      paint: {
+        'line-color': '#ffffff',
+        'line-width': 8,
+        'line-opacity': 0.8
+      }
+    });
+
+    // Add route layer
+    mapInstance.addLayer({
+      id: routeId,
+      type: 'line',
+      source: routeId,
+      layout: {
+        'line-join': 'round',
+        'line-cap': 'round'
+      },
+      paint: {
+        'line-color': '#007AFF',
+        'line-width': 5,
+        'line-opacity': 1
+      }
+    });
+  };
+
+  const clearRoute = () => {
+    if (!mapInstance) return;
+
+    // Remove all existing route layers
+    const style = mapInstance.getStyle();
+    if (style && style.layers) {
+      style.layers.forEach((layer: any) => {
+        if (layer.id.startsWith('route-')) {
+          try {
+            mapInstance.removeLayer(layer.id);
+            if (mapInstance.getSource(layer.source)) {
+              mapInstance.removeSource(layer.source);
+            }
+          } catch (error) {
+            console.warn('Error removing route layer:', error);
+          }
+        }
+      });
+    }
+  };
+
   const selectedEvent = selectedEventId ? events.find(event => event.id === selectedEventId) : undefined;
 
   // Transform event data for InfoPanel compatibility
@@ -196,7 +321,7 @@ const MapPage: React.FC = () => {
     status: getEventStatus(selectedEvent.start_utc, selectedEvent.end_utc),
     startTime: selectedEvent.start_utc,
     endTime: selectedEvent.end_utc,
-    location: selectedEvent.venues?.name || `${selectedEvent.lat}, ${selectedEvent.lng}`,
+    location: `${selectedEvent.lat}, ${selectedEvent.lng}`,
     genres: selectedEvent.genres || [],
     description: selectedEvent.description || 'Keine Beschreibung verfügbar',
     images: [], // TODO: Add image support later
@@ -215,6 +340,7 @@ const MapPage: React.FC = () => {
         events={events}
         loading={loading}
         onMapReady={handleMapReady}
+        selectedEventId={selectedEventId}
       />
       
       {/* Floating Create Event Button */}
@@ -234,6 +360,8 @@ const MapPage: React.FC = () => {
         eventData={transformedEventData}
         onEdit={handleEditEvent}
         onDelete={handleDeleteEvent}
+        onCalculateRoute={calculateRoute}
+        userLocation={currentMapPosition?.center || null}
       />
       
       <EventCreateModal

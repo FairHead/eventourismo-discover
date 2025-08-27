@@ -11,6 +11,7 @@ interface MapViewProps {
   events?: EventData[];
   loading?: boolean;
   onMapReady?: (mapInstance: mapboxgl.Map) => void;
+  selectedEventId?: string | null;
 }
 
 interface EventData {
@@ -38,7 +39,7 @@ interface EventData {
   };
 }
 
-const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = false, onMapReady }) => {
+const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = false, onMapReady, selectedEventId }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
@@ -52,6 +53,9 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
   const [markers, setMarkers] = useState<mapboxgl.Marker[]>([]);
   const [currentZoom, setCurrentZoom] = useState<number>(12);
   const [clusterMarkers, setClusterMarkers] = useState<mapboxgl.Marker[]>([]);
+  const [userMarker, setUserMarker] = useState<mapboxgl.Marker | null>(null);
+  const [userHeading, setUserHeading] = useState<number>(0);
+  const [routeLayer, setRouteLayer] = useState<string | null>(null);
   // Removed Mapbox popup state to avoid duplicate UI
 
   // Fetch Mapbox token from Edge Function
@@ -113,9 +117,10 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     };
   }, [mapboxToken]);
 
-  // Get user location
+  // Get user location and track heading
   useEffect(() => {
     if (navigator.geolocation) {
+      // Get initial position
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const coords: [number, number] = [position.coords.longitude, position.coords.latitude];
@@ -127,27 +132,273 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
               zoom: 14,
               duration: 2000
             });
+            
+            // Create user location marker
+            createUserLocationMarker(coords);
           }
         },
         (error) => {
           console.warn('Geolocation error:', error);
         }
       );
+
+      // Watch position for continuous updates
+      const watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          const coords: [number, number] = [position.coords.longitude, position.coords.latitude];
+          setUserLocation(coords);
+          
+          // Update marker position
+          if (userMarker && map.current) {
+            userMarker.setLngLat(coords);
+          }
+        },
+        (error) => {
+          console.warn('Geolocation watch error:', error);
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 10000,
+          timeout: 5000
+        }
+      );
+
+      return () => {
+        navigator.geolocation.clearWatch(watchId);
+      };
     }
-  }, []);
+  }, [map.current]);
+
+  // Track device orientation for heading
   useEffect(() => {
-    if (isMapboxReady && events.length > 0) {
-      if (currentZoom >= 12) {
-        // Show individual event pins at zoom 12+
-        clearClusterMarkers();
-        addEventPins();
-      } else {
-        // Show city clusters at zoom < 12
-        clearMarkers();
-        addCityClusters();
+    const handleDeviceOrientation = (event: DeviceOrientationEvent) => {
+      if (event.alpha !== null) {
+        setUserHeading(event.alpha);
+        
+        // Update marker rotation
+        if (userMarker) {
+          const element = userMarker.getElement();
+          const arrow = element.querySelector('.user-direction-arrow') as HTMLElement;
+          if (arrow) {
+            arrow.style.transform = `rotate(${event.alpha}deg)`;
+          }
+        }
       }
+    };
+
+    // Request permission for iOS devices
+    if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
+      (DeviceOrientationEvent as any).requestPermission()
+        .then((permissionState: string) => {
+          if (permissionState === 'granted') {
+            window.addEventListener('deviceorientation', handleDeviceOrientation);
+          }
+        })
+        .catch(console.error);
+    } else {
+      // For non-iOS devices
+      window.addEventListener('deviceorientation', handleDeviceOrientation);
     }
-  }, [events, isMapboxReady, currentZoom]);
+
+    return () => {
+      window.removeEventListener('deviceorientation', handleDeviceOrientation);
+    };
+  }, [userMarker]);
+
+  const createUserLocationMarker = (coords: [number, number]) => {
+    if (!map.current) return;
+
+    // Remove existing user marker
+    if (userMarker) {
+      userMarker.remove();
+    }
+
+    // Create user location marker element
+    const el = document.createElement('div');
+    el.style.width = '20px';
+    el.style.height = '20px';
+    el.style.position = 'relative';
+    el.style.zIndex = '1000';
+
+    // User dot (inner circle)
+    const userDot = document.createElement('div');
+    userDot.style.width = '12px';
+    userDot.style.height = '12px';
+    userDot.style.backgroundColor = '#007AFF';
+    userDot.style.borderRadius = '50%';
+    userDot.style.border = '2px solid white';
+    userDot.style.position = 'absolute';
+    userDot.style.top = '50%';
+    userDot.style.left = '50%';
+    userDot.style.transform = 'translate(-50%, -50%)';
+    userDot.style.boxShadow = '0 0 8px rgba(0, 122, 255, 0.6)';
+    userDot.style.zIndex = '1002';
+
+    // Accuracy circle (outer ring)
+    const accuracyRing = document.createElement('div');
+    accuracyRing.style.width = '40px';
+    accuracyRing.style.height = '40px';
+    accuracyRing.style.border = '2px solid rgba(0, 122, 255, 0.3)';
+    accuracyRing.style.borderRadius = '50%';
+    accuracyRing.style.position = 'absolute';
+    accuracyRing.style.top = '50%';
+    accuracyRing.style.left = '50%';
+    accuracyRing.style.transform = 'translate(-50%, -50%)';
+    accuracyRing.style.backgroundColor = 'rgba(0, 122, 255, 0.1)';
+    accuracyRing.style.zIndex = '1001';
+
+    // Direction arrow
+    const arrow = document.createElement('div');
+    arrow.className = 'user-direction-arrow';
+    arrow.style.width = '0';
+    arrow.style.height = '0';
+    arrow.style.borderLeft = '4px solid transparent';
+    arrow.style.borderRight = '4px solid transparent';
+    arrow.style.borderBottom = '12px solid #007AFF';
+    arrow.style.position = 'absolute';
+    arrow.style.top = '-6px';
+    arrow.style.left = '50%';
+    arrow.style.transform = 'translateX(-50%) rotate(0deg)';
+    arrow.style.transformOrigin = '50% 18px';
+    arrow.style.zIndex = '1003';
+    arrow.style.transition = 'transform 0.3s ease';
+
+    el.appendChild(accuracyRing);
+    el.appendChild(userDot);
+    el.appendChild(arrow);
+
+    const marker = new mapboxgl.Marker({
+      element: el,
+      anchor: 'center'
+    })
+      .setLngLat(coords)
+      .addTo(map.current);
+
+    setUserMarker(marker);
+  };
+  // Route calculation and display
+  const calculateRoute = async (
+    destination: [number, number],
+    transportMode: 'walking' | 'cycling' | 'driving' | 'driving-traffic'
+  ) => {
+    if (!userLocation || !mapboxToken || !map.current) {
+      console.warn('Missing requirements for route calculation');
+      return;
+    }
+
+    try {
+      const profile = transportMode === 'cycling' ? 'cycling' : 
+                    transportMode === 'walking' ? 'walking' : 'driving';
+      
+      const response = await fetch(
+        `https://api.mapbox.com/directions/v5/mapbox/${profile}/${userLocation[0]},${userLocation[1]};${destination[0]},${destination[1]}?` +
+        `steps=true&geometries=geojson&access_token=${mapboxToken}&language=de`
+      );
+
+      if (!response.ok) throw new Error('Route calculation failed');
+
+      const data = await response.json();
+      
+      if (data.routes && data.routes.length > 0) {
+        const route = data.routes[0];
+        displayRoute(route);
+        
+        // Fit map to show entire route
+        const coordinates = route.geometry.coordinates;
+        const bounds = coordinates.reduce((bounds: mapboxgl.LngLatBounds, coord: [number, number]) => {
+          return bounds.extend(coord);
+        }, new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]));
+        
+        map.current.fitBounds(bounds, { padding: 50 });
+        
+        return {
+          duration: route.duration,
+          distance: route.distance,
+          steps: route.legs[0]?.steps || []
+        };
+      }
+    } catch (error) {
+      console.error('Route calculation error:', error);
+      throw error;
+    }
+  };
+
+  const displayRoute = (route: any) => {
+    if (!map.current) return;
+
+    // Remove existing route
+    clearRoute();
+
+    const routeId = 'route-' + Date.now();
+    setRouteLayer(routeId);
+
+    // Add route source
+    map.current.addSource(routeId, {
+      type: 'geojson',
+      data: {
+        type: 'Feature',
+        properties: {},
+        geometry: route.geometry
+      }
+    });
+
+    // Add route layer
+    map.current.addLayer({
+      id: routeId,
+      type: 'line',
+      source: routeId,
+      layout: {
+        'line-join': 'round',
+        'line-cap': 'round'
+      },
+      paint: {
+        'line-color': '#007AFF',
+        'line-width': 6,
+        'line-opacity': 0.8
+      }
+    });
+
+    // Add route outline for better visibility
+    map.current.addLayer({
+      id: routeId + '-outline',
+      type: 'line',
+      source: routeId,
+      layout: {
+        'line-join': 'round',
+        'line-cap': 'round'
+      },
+      paint: {
+        'line-color': '#ffffff',
+        'line-width': 8,
+        'line-opacity': 0.6
+      }
+    });
+
+    // Move route layers below event markers
+    map.current.moveLayer(routeId + '-outline');
+    map.current.moveLayer(routeId);
+  };
+
+  const clearRoute = () => {
+    if (!map.current || !routeLayer) return;
+
+    try {
+      // Remove route layers and source
+      if (map.current.getLayer(routeLayer)) {
+        map.current.removeLayer(routeLayer);
+      }
+      if (map.current.getLayer(routeLayer + '-outline')) {
+        map.current.removeLayer(routeLayer + '-outline');
+      }
+      if (map.current.getSource(routeLayer)) {
+        map.current.removeSource(routeLayer);
+      }
+    } catch (error) {
+      console.warn('Error clearing route:', error);
+    }
+    
+    setRouteLayer(null);
+  };
 
   // Auto-update event statuses every minute
   useEffect(() => {
@@ -345,6 +596,13 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     };
     return colors[dominantStatus as keyof typeof colors] || '#6b7280'; // Gray fallback
   };
+
+  // Expose route calculation functions to parent
+  React.useImperativeHandle(onMapReady as any, () => ({
+    calculateRoute,
+    clearRoute,
+    getMap: () => map.current
+  }), [userLocation, mapboxToken]);
   const addEventPins = () => {
     if (!map.current) return;
 
