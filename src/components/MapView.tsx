@@ -131,6 +131,18 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     }
   }, [events, isMapboxReady]);
 
+  // Auto-update event statuses every minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Force re-render of pins to update their status based on current time
+      if (isMapboxReady && events.length > 0) {
+        addEventPins();
+      }
+    }, 60000); // Update every minute
+
+    return () => clearInterval(interval);
+  }, [events, isMapboxReady]);
+
   // Helper function to determine event status
   const getEventStatus = (startUtc: string, endUtc: string): 'live' | 'today' | 'upcoming' | 'finished' | 'past' => {
     const now = new Date();
