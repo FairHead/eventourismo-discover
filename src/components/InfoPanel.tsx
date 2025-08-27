@@ -12,9 +12,12 @@ import {
   ExternalLink,
   Calendar,
   Star,
-  Users
+  Users,
+  Edit,
+  Trash2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface EventData {
   id: string;
@@ -33,16 +36,22 @@ interface EventData {
   rating?: number;
   attendees?: number;
   isFavorite?: boolean;
+  organizerId?: string;
 }
 
 interface InfoPanelProps {
   isOpen: boolean;
   onClose: () => void;
   eventData?: EventData;
+  onEdit?: (eventId: string) => void;
+  onDelete?: (eventId: string) => void;
 }
 
-const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData }) => {
+const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData, onEdit, onDelete }) => {
   if (!eventData) return null;
+
+  const { user } = useAuth();
+  const isEventCreator = user && eventData.organizerId === user.id;
 
   const getStatusBadge = (status: string) => {
     const variants = {
@@ -266,6 +275,34 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData }) => 
               Teilen
             </Button>
           </div>
+
+          {/* Event Creator Actions */}
+          {isEventCreator && (
+            <>
+              <Separator />
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground font-medium">Event verwalten</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <Button 
+                    variant="outline" 
+                    className="justify-start gap-2 relative z-0"
+                    onClick={() => onEdit?.(eventData.id)}
+                  >
+                    <Edit className="w-4 h-4" />
+                    Bearbeiten
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    className="justify-start gap-2 text-destructive hover:text-destructive relative z-0"
+                    onClick={() => onDelete?.(eventData.id)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Löschen
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
 
           {/* Links */}
           {(eventData.ticketUrl || eventData.websiteUrl) && (

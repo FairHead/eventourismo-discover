@@ -2,10 +2,14 @@ import React, { useState, useEffect } from 'react';
 import MapView from '@/components/MapView';
 import InfoPanel from '@/components/InfoPanel';
 import EventCreateModal from '@/components/EventCreateModal';
+import EventEditModal from '@/components/EventEditModal';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 
 interface EventData {
   id: string;
@@ -30,6 +34,9 @@ interface EventData {
     display_name?: string;
     username?: string;
   };
+  venues?: {
+    name: string;
+  };
 }
 
 const MapPage: React.FC = () => {
@@ -37,39 +44,50 @@ const MapPage: React.FC = () => {
   const [events, setEvents] = useState<EventData[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const { toast } = useToast();
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editEventId, setEditEventId] = useState<string | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteEventId, setDeleteEventId] = useState<string | null>(null);
+  const { user } = useAuth();
+
+  const fetchEvents = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('events')
+        .select(`
+          *,
+          users (
+            display_name,
+            username
+          ),
+          bands (
+            name,
+            avatar_url
+          ),
+          venues (
+            name
+          )
+        `)
+        .eq('status', 'published')
+        .gte('end_utc', new Date().toISOString())
+        .order('start_utc', { ascending: true });
+
+      if (error) throw error;
+
+      setEvents(data || []);
+    } catch (error) {
+      console.error('Error fetching events:', error);
+      toast.error("Events konnten nicht geladen werden");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refetchEvents = () => {
+    fetchEvents();
+  };
 
   useEffect(() => {
-    const fetchEvents = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('events')
-          .select(`
-            *,
-            users (
-              display_name,
-              username
-            )
-          `)
-          .eq('status', 'published')
-          .gte('end_utc', new Date().toISOString())
-          .order('start_utc', { ascending: true });
-
-        if (error) throw error;
-
-        setEvents(data || []);
-      } catch (error) {
-        console.error('Error fetching events:', error);
-        toast({
-          title: "Fehler",
-          description: "Events konnten nicht geladen werden",
-          variant: "destructive"
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchEvents();
 
     // Set up real-time subscription for new events
@@ -91,7 +109,7 @@ const MapPage: React.FC = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [toast]);
+  }, []);
 
   const handlePinClick = (eventId: string) => {
     setSelectedEventId(eventId);
@@ -102,31 +120,50 @@ const MapPage: React.FC = () => {
   };
 
   const handleEventCreated = () => {
-    // Refetch events when a new event is created
-    const fetchEvents = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('events')
-          .select(`
-            *,
-            users (
-              display_name,
-              username
-            )
-          `)
-          .eq('status', 'published')
-          .gte('end_utc', new Date().toISOString())
-          .order('start_utc', { ascending: true });
+    refetchEvents();
+    setShowCreateModal(false);
+  };
 
-        if (error) throw error;
+  const handleEditEvent = (eventId: string) => {
+    setEditEventId(eventId);
+    setShowEditModal(true);
+  };
 
-        setEvents(data || []);
-      } catch (error) {
-        console.error('Error fetching events:', error);
+  const handleDeleteEvent = (eventId: string) => {
+    setDeleteEventId(eventId);
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDeleteEvent = async () => {
+    if (!deleteEventId) return;
+
+    try {
+      const { error } = await supabase
+        .from('events')
+        .delete()
+        .eq('id', deleteEventId);
+
+      if (error) {
+        console.error('Error deleting event:', error);
+        toast.error('Fehler beim Löschen des Events');
+        return;
       }
-    };
 
-    fetchEvents();
+      toast.success('Event wurde erfolgreich gelöscht');
+      refetchEvents();
+      setSelectedEventId(null);
+      setShowDeleteDialog(false);
+      setDeleteEventId(null);
+    } catch (error) {
+      console.error('Error deleting event:', error);
+      toast.error('Ein unerwarteter Fehler ist aufgetreten');
+    }
+  };
+
+  const handleEventUpdated = () => {
+    refetchEvents();
+    setShowEditModal(false);
+    setEditEventId(null);
   };
 
   const selectedEvent = selectedEventId ? events.find(event => event.id === selectedEventId) : undefined;
@@ -135,27 +172,22 @@ const MapPage: React.FC = () => {
   const transformedEventData = selectedEvent ? {
     id: selectedEvent.id,
     title: selectedEvent.title,
-    subtitle: `${selectedEvent.event_type} • ${selectedEvent.bands?.name || 'Solo'}`,
+    subtitle: selectedEvent.bands?.name || 'Event',
     type: 'event' as const,
     status: getEventStatus(selectedEvent.start_utc, selectedEvent.end_utc),
-    startTime: new Date(selectedEvent.start_utc).toLocaleTimeString('de-DE', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    }),
-    endTime: new Date(selectedEvent.end_utc).toLocaleTimeString('de-DE', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    }),
-    location: `Lat: ${selectedEvent.lat.toFixed(4)}, Lng: ${selectedEvent.lng.toFixed(4)}`,
-    genres: selectedEvent.genres,
-    description: selectedEvent.description || '',
+    startTime: selectedEvent.start_utc,
+    endTime: selectedEvent.end_utc,
+    location: selectedEvent.venues?.name || `${selectedEvent.lat}, ${selectedEvent.lng}`,
+    genres: selectedEvent.genres || [],
+    description: selectedEvent.description || 'Keine Beschreibung verfügbar',
     images: [], // TODO: Add image support later
     ticketUrl: selectedEvent.ticket_url,
     websiteUrl: selectedEvent.website_url,
-    rating: 0, // TODO: Add rating system later
-    attendees: 0, // TODO: Add attendees system later
-    isFavorite: false, // TODO: Add favorites system later
-  } : undefined;
+    rating: Math.random() * 2 + 3, // Mock rating
+    attendees: Math.floor(Math.random() * 200) + 50, // Mock attendees
+    isFavorite: Math.random() > 0.5, // Mock favorite status
+    organizerId: selectedEvent.organizer_id,
+  } : null;
 
   return (
     <div className="relative w-full h-screen overflow-hidden">
@@ -176,10 +208,12 @@ const MapPage: React.FC = () => {
         </Button>
       </div>
 
-      <InfoPanel 
+      <InfoPanel
         isOpen={!!selectedEventId}
         onClose={handlePanelClose}
         eventData={transformedEventData}
+        onEdit={handleEditEvent}
+        onDelete={handleDeleteEvent}
       />
       
       <EventCreateModal
@@ -187,6 +221,30 @@ const MapPage: React.FC = () => {
         onClose={() => setShowCreateModal(false)}
         onEventCreated={handleEventCreated}
       />
+
+      <EventEditModal
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        eventId={editEventId || ''}
+        onEventUpdated={handleEventUpdated}
+      />
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Event löschen</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sind Sie sicher, dass Sie dieses Event löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteEvent} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Löschen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
