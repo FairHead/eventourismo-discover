@@ -187,6 +187,7 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData, onEdi
                   {/* Start Date & Time */}
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-primary" />
+                    <span className="font-medium text-primary">Start:</span>
                     <span className="font-medium">
                       {new Date(eventData.startTime).toLocaleDateString('de-DE', {
                         weekday: 'short',
@@ -212,10 +213,11 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData, onEdi
                     
                     return (
                       <>
-                        {isMultiDay && (
-                          <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border">
-                            <Calendar className="w-4 h-4 text-secondary" />
-                            <span className="font-medium text-secondary">
+                        <div className={`flex items-center gap-2 ${isMultiDay ? 'mt-2 pt-2 border-t border-border' : 'mt-1'}`}>
+                          <Calendar className="w-4 h-4 text-secondary" />
+                          <span className="font-medium text-secondary">Ende:</span>
+                          {isMultiDay && (
+                            <span className="font-medium">
                               {new Date(eventData.endTime).toLocaleDateString('de-DE', {
                                 weekday: 'short',
                                 year: 'numeric',
@@ -223,12 +225,12 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData, onEdi
                                 day: 'numeric'
                               })}
                             </span>
-                          </div>
-                        )}
+                          )}
+                        </div>
                         <div className="flex items-center gap-2 ml-6">
                           <Clock className="w-4 h-4 text-secondary" />
-                          <span className="text-secondary">
-                            bis {new Date(eventData.endTime).toLocaleTimeString('de-DE', { 
+                          <span>
+                            {new Date(eventData.endTime).toLocaleTimeString('de-DE', { 
                               hour: '2-digit', 
                               minute: '2-digit' 
                             })}
