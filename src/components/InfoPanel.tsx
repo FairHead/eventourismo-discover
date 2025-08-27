@@ -18,7 +18,9 @@ import {
   Navigation,
   Car,
   Bike,
-  UserCheck
+  UserCheck,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -58,8 +60,16 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData, onEdi
     duration: number;
     distance: number;
     mode: string;
+    steps?: any[];
   } | null>(null);
   const [loadingRoute, setLoadingRoute] = useState<string | null>(null);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [navigationRoute, setNavigationRoute] = useState<{
+    destination: [number, number];
+    mode: string;
+    steps: any[];
+  } | null>(null);
 
   if (!eventData) return null;
 
@@ -82,13 +92,61 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData, onEdi
         setRouteInfo({
           duration: result.duration,
           distance: result.distance,
-          mode: mode
+          mode: mode,
+          steps: result.steps || []
+        });
+        setNavigationRoute({
+          destination,
+          mode,
+          steps: result.steps || []
         });
       }
     } catch (error) {
       console.error('Route calculation failed:', error);
     } finally {
       setLoadingRoute(null);
+    }
+  };
+
+  const startNavigation = () => {
+    if (navigationRoute) {
+      setIsNavigating(true);
+      setCurrentStepIndex(0);
+      
+      // Optional: Text-to-speech for first instruction
+      if ('speechSynthesis' in window && navigationRoute.steps.length > 0) {
+        const utterance = new SpeechSynthesisUtterance(navigationRoute.steps[0].maneuver?.instruction || 'Navigation gestartet');
+        utterance.lang = 'de-DE';
+        speechSynthesis.speak(utterance);
+      }
+    }
+  };
+
+  const stopNavigation = () => {
+    setIsNavigating(false);
+    setCurrentStepIndex(0);
+    if ('speechSynthesis' in window) {
+      speechSynthesis.cancel();
+    }
+  };
+
+  const nextStep = () => {
+    if (navigationRoute && currentStepIndex < navigationRoute.steps.length - 1) {
+      const newIndex = currentStepIndex + 1;
+      setCurrentStepIndex(newIndex);
+      
+      // Text-to-speech for next instruction
+      if ('speechSynthesis' in window && navigationRoute.steps[newIndex]) {
+        const utterance = new SpeechSynthesisUtterance(navigationRoute.steps[newIndex].maneuver?.instruction || 'Nächster Schritt');
+        utterance.lang = 'de-DE';
+        speechSynthesis.speak(utterance);
+      }
+    }
+  };
+
+  const previousStep = () => {
+    if (currentStepIndex > 0) {
+      setCurrentStepIndex(currentStepIndex - 1);
     }
   };
 
@@ -433,55 +491,127 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData, onEdi
           {userLocation && (
             <div className="space-y-3">
               <Separator />
-              <div className="space-y-2">
-                <h3 className="font-semibold text-sm">Navigation</h3>
-                
-                {routeInfo && (
-                  <div className="bg-accent/20 rounded-lg p-3 mb-2">
-                    <div className="flex items-center gap-2 text-sm">
-                      {routeInfo.mode === 'walking' && <UserCheck className="w-4 h-4" />}
-                      {routeInfo.mode === 'cycling' && <Bike className="w-4 h-4" />}
-                      {routeInfo.mode === 'driving' && <Car className="w-4 h-4" />}
-                      <span className="font-medium">
-                        {formatDistance(routeInfo.distance)} • {formatDuration(routeInfo.duration)}
-                      </span>
-                    </div>
+              
+              {/* Active Navigation Interface */}
+              {isNavigating && navigationRoute && (
+                <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-primary">Navigation aktiv</h3>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={stopNavigation}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
                   </div>
-                )}
-                
-                <div className="grid grid-cols-3 gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    disabled={loadingRoute === 'walking'}
-                    onClick={() => handleRouteCalculation('walking')}
-                    className="flex items-center gap-1"
-                  >
-                    <UserCheck className="w-3 h-3" />
-                    {loadingRoute === 'walking' ? '...' : 'Zu Fuß'}
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    disabled={loadingRoute === 'cycling'}
-                    onClick={() => handleRouteCalculation('cycling')}
-                    className="flex items-center gap-1"
-                  >
-                    <Bike className="w-3 h-3" />
-                    {loadingRoute === 'cycling' ? '...' : 'Fahrrad'}
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    disabled={loadingRoute === 'driving'}
-                    onClick={() => handleRouteCalculation('driving')}
-                    className="flex items-center gap-1"
-                  >
-                    <Car className="w-3 h-3" />
-                    {loadingRoute === 'driving' ? '...' : 'Auto'}
-                  </Button>
+                  
+                  {navigationRoute.steps.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="bg-card rounded-lg p-3">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                          <span>Schritt {currentStepIndex + 1} von {navigationRoute.steps.length}</span>
+                        </div>
+                        <div className="text-lg font-medium">
+                          {navigationRoute.steps[currentStepIndex]?.maneuver?.instruction || 'Folgen Sie der Route'}
+                        </div>
+                        {navigationRoute.steps[currentStepIndex]?.distance && (
+                          <div className="text-sm text-muted-foreground mt-1">
+                            {formatDistance(navigationRoute.steps[currentStepIndex].distance)}
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={previousStep}
+                          disabled={currentStepIndex === 0}
+                          className="flex-1"
+                        >
+                          <ChevronLeft className="w-4 h-4 mr-1" />
+                          Zurück
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={nextStep}
+                          disabled={currentStepIndex >= navigationRoute.steps.length - 1}
+                          className="flex-1"
+                        >
+                          Weiter
+                          <ChevronRight className="w-4 h-4 ml-1" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
+              )}
+              
+              {/* Route Planning Interface */}
+              {!isNavigating && (
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-sm">Navigation</h3>
+                  
+                  {routeInfo && (
+                    <div className="bg-accent/20 rounded-lg p-3 mb-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-sm">
+                          {routeInfo.mode === 'walking' && <UserCheck className="w-4 h-4" />}
+                          {routeInfo.mode === 'cycling' && <Bike className="w-4 h-4" />}
+                          {routeInfo.mode === 'driving' && <Car className="w-4 h-4" />}
+                          <span className="font-medium">
+                            {formatDistance(routeInfo.distance)} • {formatDuration(routeInfo.duration)}
+                          </span>
+                        </div>
+                        <Button 
+                          size="sm" 
+                          onClick={startNavigation}
+                          className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                        >
+                          <Navigation className="w-3 h-3 mr-1" />
+                          Start
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="grid grid-cols-3 gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      disabled={loadingRoute === 'walking'}
+                      onClick={() => handleRouteCalculation('walking')}
+                      className="flex items-center gap-1"
+                    >
+                      <UserCheck className="w-3 h-3" />
+                      {loadingRoute === 'walking' ? '...' : 'Zu Fuß'}
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      disabled={loadingRoute === 'cycling'}
+                      onClick={() => handleRouteCalculation('cycling')}
+                      className="flex items-center gap-1"
+                    >
+                      <Bike className="w-3 h-3" />
+                      {loadingRoute === 'cycling' ? '...' : 'Fahrrad'}
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      disabled={loadingRoute === 'driving'}
+                      onClick={() => handleRouteCalculation('driving')}
+                      className="flex items-center gap-1"
+                    >
+                      <Car className="w-3 h-3" />
+                      {loadingRoute === 'driving' ? '...' : 'Auto'}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
