@@ -164,6 +164,7 @@ const MapPage: React.FC = () => {
     refetchEvents();
     setShowEditModal(false);
     setEditEventId(null);
+    // Keep the event panel open by keeping selectedEventId - the updated data will load automatically
   };
 
   const selectedEvent = selectedEventId ? events.find(event => event.id === selectedEventId) : undefined;
