@@ -114,6 +114,34 @@ const MapPage: React.FC = () => {
     };
   }, []);
 
+  // Handle focusing on event from search
+  useEffect(() => {
+    const focusEventId = sessionStorage.getItem('focusEventId');
+    const focusEventData = sessionStorage.getItem('focusEventData');
+    
+    if (focusEventId && focusEventData && mapInstance) {
+      try {
+        const eventData = JSON.parse(focusEventData);
+        
+        // Focus on the event on the map
+        mapInstance.flyTo({
+          center: [eventData.lng, eventData.lat],
+          zoom: eventData.zoom || 15,
+          duration: 2000
+        });
+        
+        // Select the event to show in panel
+        setSelectedEventId(focusEventId);
+        
+        // Clear the session storage
+        sessionStorage.removeItem('focusEventId');
+        sessionStorage.removeItem('focusEventData');
+      } catch (error) {
+        console.error('Error parsing focus event data:', error);
+      }
+    }
+  }, [mapInstance, events]);
+
   const handlePinClick = (eventId: string) => {
     setSelectedEventId(eventId);
   };

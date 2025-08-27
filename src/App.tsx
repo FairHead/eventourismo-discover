@@ -8,6 +8,7 @@ import Profile from "./pages/Profile";
 import Auth from "./pages/Auth";
 import BandProfile from "./pages/BandProfile";
 import EventCreate from "./pages/EventCreate";
+import Search from "./pages/Search";
 import BottomNavigation from "./components/BottomNavigation";
 import ProtectedRoute from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
@@ -26,7 +27,7 @@ const App = () => (
         } />
         <Route path="/search" element={
           <ProtectedRoute>
-            <div className="p-4 pb-20">Suche (coming soon)</div>
+            <Search />
           </ProtectedRoute>
         } />
         <Route path="/create" element={
