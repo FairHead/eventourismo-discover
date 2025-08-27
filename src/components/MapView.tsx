@@ -127,7 +127,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
 
   // Get user location and track heading
   useEffect(() => {
-    if (navigator.geolocation) {
+    if (navigator.geolocation && map.current) {
       // Get initial position
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -141,7 +141,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
               duration: 2000
             });
             
-            // Create user location marker
+            // Create user location marker only once
             createUserLocationMarker(coords);
           }
         },
@@ -156,9 +156,12 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
           const coords: [number, number] = [position.coords.longitude, position.coords.latitude];
           setUserLocation(coords);
           
-          // Update marker position
-          if (userMarker && map.current) {
+          // Update existing marker position instead of creating new one
+          if (userMarker) {
             userMarker.setLngLat(coords);
+          } else if (map.current) {
+            // Create marker if it doesn't exist
+            createUserLocationMarker(coords);
           }
         },
         (error) => {
@@ -175,7 +178,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
         navigator.geolocation.clearWatch(watchId);
       };
     }
-  }, [map.current]);
+  }, [isMapboxReady]); // Change dependency to isMapboxReady
 
   // Track device orientation for heading
   useEffect(() => {
@@ -407,6 +410,20 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     
     setRouteLayer(null);
   };
+
+  // Display events on map when data changes or zoom changes
+  useEffect(() => {
+    if (isMapboxReady && events.length > 0) {
+      console.log('Displaying events, zoom level:', currentZoom, 'events count:', events.length);
+      if (currentZoom >= 12) {
+        clearClusterMarkers();
+        addEventPins();
+      } else {
+        clearMarkers();
+        addCityClusters();
+      }
+    }
+  }, [events, isMapboxReady, currentZoom]);
 
   // Auto-update event statuses every minute
   useEffect(() => {
