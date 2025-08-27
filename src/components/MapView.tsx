@@ -50,6 +50,8 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
   const [mapboxToken, setMapboxToken] = useState<string | null>(null);
   const [tokenError, setTokenError] = useState<string | null>(null);
   const [markers, setMarkers] = useState<mapboxgl.Marker[]>([]);
+  const [currentZoom, setCurrentZoom] = useState<number>(12);
+  const [clusterMarkers, setClusterMarkers] = useState<mapboxgl.Marker[]>([]);
   // Removed Mapbox popup state to avoid duplicate UI
 
   // Fetch Mapbox token from Edge Function
@@ -98,6 +100,12 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     map.current.on('load', () => {
       setIsMapboxReady(true);
       onMapReady?.(map.current!);
+      
+      // Listen to zoom changes
+      map.current!.on('zoom', () => {
+        const zoom = map.current!.getZoom();
+        setCurrentZoom(zoom);
+      });
     });
 
     return () => {
@@ -129,21 +137,33 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
   }, []);
   useEffect(() => {
     if (isMapboxReady && events.length > 0) {
-      addEventPins();
+      if (currentZoom >= 12) {
+        // Show individual event pins at zoom 12+
+        clearClusterMarkers();
+        addEventPins();
+      } else {
+        // Show city clusters at zoom < 12
+        clearMarkers();
+        addCityClusters();
+      }
     }
-  }, [events, isMapboxReady]);
+  }, [events, isMapboxReady, currentZoom]);
 
   // Auto-update event statuses every minute
   useEffect(() => {
     const interval = setInterval(() => {
       // Force re-render of pins to update their status based on current time
       if (isMapboxReady && events.length > 0) {
-        addEventPins();
+        if (currentZoom >= 12) {
+          addEventPins();
+        } else {
+          addCityClusters();
+        }
       }
     }, 60000); // Update every minute
 
     return () => clearInterval(interval);
-  }, [events, isMapboxReady]);
+  }, [events, isMapboxReady, currentZoom]);
 
   // Helper function to determine event status
   const getEventStatus = (startUtc: string, endUtc: string): 'upcoming' | 'starting_soon' | 'live' | 'ending_soon' | 'finished' | 'past' => {
@@ -187,7 +207,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
   };
 
   const clearMarkers = () => {
-    console.log('Clearing', markers.length, 'markers');
+    console.log('Clearing', markers.length, 'event markers');
     markers.forEach(marker => {
       try {
         marker.remove();
@@ -198,6 +218,133 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     setMarkers([]);
   };
 
+  const clearClusterMarkers = () => {
+    console.log('Clearing', clusterMarkers.length, 'cluster markers');
+    clusterMarkers.forEach(marker => {
+      try {
+        marker.remove();
+      } catch (error) {
+        console.warn('Error removing cluster marker:', error);
+      }
+    });
+    setClusterMarkers([]);
+  };
+
+  const addCityClusters = () => {
+    if (!map.current) return;
+
+    // Clear existing cluster markers
+    clearClusterMarkers();
+    const newClusterMarkers: mapboxgl.Marker[] = [];
+
+    // Filter out past events
+    const activeEvents = events.filter(event => {
+      const status = getEventStatus(event.start_utc, event.end_utc);
+      return status !== 'past';
+    });
+
+    // Group events by approximate location (0.1 degree grid ~ 11km)
+    const clusters = new Map<string, EventData[]>();
+    
+    activeEvents.forEach(event => {
+      const gridLat = Math.floor(event.lat * 10) / 10;
+      const gridLng = Math.floor(event.lng * 10) / 10;
+      const gridKey = `${gridLat},${gridLng}`;
+      
+      if (!clusters.has(gridKey)) {
+        clusters.set(gridKey, []);
+      }
+      clusters.get(gridKey)!.push(event);
+    });
+
+    console.log('Creating', clusters.size, 'city clusters');
+
+    clusters.forEach((clusterEvents, gridKey) => {
+      const [gridLat, gridLng] = gridKey.split(',').map(Number);
+      
+      // Calculate cluster center (average position)
+      const centerLat = clusterEvents.reduce((sum, e) => sum + e.lat, 0) / clusterEvents.length;
+      const centerLng = clusterEvents.reduce((sum, e) => sum + e.lng, 0) / clusterEvents.length;
+      
+      // Count events by status
+      const statusCounts = clusterEvents.reduce((counts, event) => {
+        const status = getEventStatus(event.start_utc, event.end_utc);
+        counts[status] = (counts[status] || 0) + 1;
+        return counts;
+      }, {} as Record<string, number>);
+
+      // Determine dominant status for cluster color
+      const dominantStatus = Object.entries(statusCounts)
+        .sort(([,a], [,b]) => b - a)[0][0];
+
+      const el = document.createElement('div');
+      el.style.cursor = 'pointer';
+      el.style.zIndex = '100';
+      
+      const cluster = document.createElement('div');
+      cluster.style.width = '40px';
+      cluster.style.height = '40px';
+      cluster.style.borderRadius = '50%';
+      cluster.style.display = 'flex';
+      cluster.style.alignItems = 'center';
+      cluster.style.justifyContent = 'center';
+      cluster.style.fontSize = '14px';
+      cluster.style.fontWeight = 'bold';
+      cluster.style.color = 'white';
+      cluster.style.backgroundColor = getClusterColor(dominantStatus);
+      cluster.style.border = '3px solid white';
+      cluster.style.boxShadow = '0 2px 10px rgba(0,0,0,0.3)';
+      cluster.style.transition = 'transform 0.2s ease';
+      cluster.textContent = clusterEvents.length.toString();
+
+      el.appendChild(cluster);
+
+      // Hover effects
+      el.addEventListener('mouseenter', () => {
+        cluster.style.transform = 'scale(1.2)';
+      });
+
+      el.addEventListener('mouseleave', () => {
+        cluster.style.transform = 'scale(1)';
+      });
+
+      // Click to zoom in to show individual events
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        
+        if (map.current) {
+          map.current.flyTo({
+            center: [centerLng, centerLat],
+            zoom: 14,
+            duration: 1500
+          });
+        }
+      });
+
+      const marker = new mapboxgl.Marker({
+        element: el,
+        anchor: 'center'
+      })
+        .setLngLat([centerLng, centerLat])
+        .addTo(map.current!);
+      
+      newClusterMarkers.push(marker);
+    });
+
+    setClusterMarkers(newClusterMarkers);
+  };
+
+  const getClusterColor = (dominantStatus: string): string => {
+    const colors = {
+      'upcoming': '#3b82f6',      // Blue
+      'starting_soon': '#f97316', // Orange
+      'live': '#22c55e',          // Green
+      'ending_soon': '#eab308',   // Yellow
+      'finished': '#ef4444',      // Red
+    };
+    return colors[dominantStatus as keyof typeof colors] || '#6b7280'; // Gray fallback
+  };
   const addEventPins = () => {
     if (!map.current) return;
 
@@ -481,15 +628,25 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
           </Button>
         </div>
 
-        {/* Stats Overlay */}
-        <div className="absolute bottom-4 left-4 pointer-events-auto">
-          <div className="bg-card/95 backdrop-blur-md border border-border rounded-lg p-3 shadow-xl" style={{ zIndex: 11 }}>
-            <div className="flex items-center gap-2 text-sm">
-              <Users className="w-4 h-4 text-primary" />
-              <span className="text-muted-foreground">{events.length} Events in der Nähe</span>
-            </div>
+      {/* Stats Overlay */}
+      <div className="absolute bottom-4 left-4 pointer-events-auto">
+        <div className="bg-card/95 backdrop-blur-md border border-border rounded-lg p-3 shadow-xl" style={{ zIndex: 11 }}>
+          <div className="flex items-center gap-2 text-sm">
+            <Users className="w-4 h-4 text-primary" />
+            <span className="text-muted-foreground">
+              {currentZoom >= 12 
+                ? `${events.length} Events in der Nähe`
+                : `${events.length} Events • Zoom: ${currentZoom.toFixed(1)}`
+              }
+            </span>
           </div>
+          {currentZoom < 12 && (
+            <div className="text-xs text-muted-foreground mt-1">
+              Zoom rein für Einzelevents
+            </div>
+          )}
         </div>
+      </div>
       </div>
 
       {/* Mapbox Token Error/Warning */}
