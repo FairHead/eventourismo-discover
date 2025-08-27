@@ -40,6 +40,12 @@ interface EventData {
   venues?: {
     name: string;
   };
+  // Add geocoded location info
+  locationInfo?: {
+    address: string;
+    city: string;
+    region: string;
+  };
 }
 
 interface LocationSuggestion {
@@ -87,7 +93,32 @@ const Search: React.FC = () => {
 
       if (error) throw error;
 
-      setEvents(data || []);
+      // Reverse geocode locations for events
+      const eventsWithLocation = await Promise.all(
+        (data || []).map(async (event) => {
+          try {
+            const { data: locationData, error: geoError } = await supabase.functions.invoke(
+              'reverse-geocode',
+              {
+                body: { lat: event.lat, lng: event.lng }
+              }
+            );
+
+            if (!geoError && locationData) {
+              return {
+                ...event,
+                locationInfo: locationData
+              };
+            }
+          } catch (error) {
+            console.error('Geocoding failed for event:', event.id, error);
+          }
+          
+          return event;
+        })
+      );
+
+      setEvents(eventsWithLocation);
     } catch (error) {
       console.error('Error fetching events:', error);
       toast.error("Events konnten nicht geladen werden");
@@ -280,6 +311,12 @@ const Search: React.FC = () => {
   };
 
   const navigateToEvent = (event: EventData) => {
+    console.log('Navigating to event:', event.id, 'at location:', event.lat, event.lng);
+    
+    // Clear any existing session data first
+    sessionStorage.removeItem('focusEventId');
+    sessionStorage.removeItem('focusEventData');
+    
     // Store the selected event in sessionStorage so MapPage can focus on it
     sessionStorage.setItem('focusEventId', event.id);
     sessionStorage.setItem('focusEventData', JSON.stringify({
@@ -287,6 +324,11 @@ const Search: React.FC = () => {
       lng: event.lng,
       zoom: 15
     }));
+    
+    console.log('Session data set:', {
+      focusEventId: event.id,
+      focusEventData: { lat: event.lat, lng: event.lng, zoom: 15 }
+    });
     
     navigate('/');
   };
@@ -510,7 +552,29 @@ const Search: React.FC = () => {
                           {event.venues?.name && (
                             <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
                               <MapPin className="h-3 w-3" />
-                              {event.venues.name}
+                              <span className="truncate">{event.venues.name}</span>
+                            </div>
+                          )}
+
+                          {/* City and Location Info */}
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
+                            <Navigation className="h-3 w-3" />
+                            <span className="truncate">
+                              {isLocationSearch && selectedLocation ? (
+                                `${Math.round(calculateDistance(selectedLocation.center[1], selectedLocation.center[0], event.lat, event.lng))} km entfernt`
+                              ) : event.locationInfo?.city ? (
+                                event.locationInfo.city
+                              ) : (
+                                `${event.lat.toFixed(4)}, ${event.lng.toFixed(4)}`
+                              )}
+                            </span>
+                          </div>
+
+                          {/* Full Address (if available) */}
+                          {event.locationInfo?.address && !isLocationSearch && (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
+                              <MapPin className="h-3 w-3" />
+                              <span className="truncate text-xs">{event.locationInfo.address}</span>
                             </div>
                           )}
 
