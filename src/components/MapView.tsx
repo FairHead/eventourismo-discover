@@ -135,7 +135,13 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       (position) => {
         const coords: [number, number] = [position.coords.longitude, position.coords.latitude];
         setUserLocation(coords);
-        map.current?.flyTo({ center: coords, zoom: 14, duration: 2000 });
+        
+        // If a focused event is pending (from Search), do NOT override the focus
+        const hasPendingFocus = !!sessionStorage.getItem('focusEventId') && !!sessionStorage.getItem('focusEventData');
+        if (!hasPendingFocus) {
+          map.current?.flyTo({ center: coords, zoom: 14, duration: 2000 });
+        }
+        
         // Ensure marker exists immediately
         if (!userMarkerRef.current) {
           console.log('Creating user location marker (initial)');

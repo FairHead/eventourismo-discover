@@ -322,7 +322,7 @@ const MapPage: React.FC = () => {
       }
     });
 
-    // Add route layer
+    // Add route layer (blue path)
     mapInstance.addLayer({
       id: routeId,
       type: 'line',
@@ -337,6 +337,14 @@ const MapPage: React.FC = () => {
         'line-opacity': 1
       }
     });
+
+    // Ensure route layers are on top
+    try {
+      mapInstance.moveLayer(routeId + '-outline');
+      mapInstance.moveLayer(routeId);
+    } catch (e) {
+      console.warn('Could not move route layers to top:', e);
+    }
   };
 
   const clearRoute = () => {
