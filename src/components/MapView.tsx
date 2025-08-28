@@ -58,10 +58,14 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const geoWatchIdRef = useRef<number | null>(null);
   const [userHeading, setUserHeading] = useState<number>(0);
-  const [routeLayer, setRouteLayer] = useState<string | null>(null);
-  // Navigation states
   const [isNavigating, setIsNavigating] = useState(false);
   const [navigationDestination, setNavigationDestination] = useState<{
+    name: string;
+    coords: [number, number];
+  } | null>(null);
+  const [routeLayer, setRouteLayer] = useState<string | null>(null);
+  const [showRoute, setShowRoute] = useState(false);
+  const [routeDestination, setRouteDestination] = useState<{
     name: string;
     coords: [number, number];
   } | null>(null);
@@ -446,7 +450,23 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       }
     });
 
-    // Add route layer
+    // Add route outline for better visibility (render first, so it's below)
+    map.current.addLayer({
+      id: routeId + '-outline',
+      type: 'line',
+      source: routeId,
+      layout: {
+        'line-join': 'round',
+        'line-cap': 'round'
+      },
+      paint: {
+        'line-color': '#ffffff',
+        'line-width': 10,
+        'line-opacity': 0.8
+      }
+    });
+
+    // Add route layer (render on top of outline)
     map.current.addLayer({
       id: routeId,
       type: 'line',
@@ -458,29 +478,12 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       paint: {
         'line-color': '#007AFF',
         'line-width': 6,
-        'line-opacity': 0.8
+        'line-opacity': 1.0
       }
     });
 
-    // Add route outline for better visibility
-    map.current.addLayer({
-      id: routeId + '-outline',
-      type: 'line',
-      source: routeId,
-      layout: {
-        'line-join': 'round',
-        'line-cap': 'round'
-      },
-      paint: {
-        'line-color': '#ffffff',
-        'line-width': 8,
-        'line-opacity': 0.6
-      }
-    });
-
-    // Move route layers below event markers
-    map.current.moveLayer(routeId + '-outline');
-    map.current.moveLayer(routeId);
+    // Ensure route is visible above everything but below UI
+    // Don't move layers below event markers - keep route visible
   };
 
   const clearRoute = () => {
@@ -518,6 +521,8 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     }
     
     setRouteLayer(null);
+    setShowRoute(false);
+    setRouteDestination(null);
   };
 
   // Display events on map when data changes or zoom changes
@@ -833,13 +838,34 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
         
         contextMenu.innerHTML = `
           <div style="font-weight: bold; margin-bottom: 8px; color: #333;">${event.title}</div>
-          <button id="navigate-btn" style="
+          <button id="show-route-btn" style="
             width: 100%;
             padding: 8px 12px;
             background: #3b82f6;
             color: white;
             border: none;
-            border-radius: 6px;
+            border-radius: 6px 6px 0 0;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+          ">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+              <circle cx="12" cy="10" r="3"></circle>
+            </svg>
+            Route anzeigen
+          </button>
+          <button id="navigate-btn" style="
+            width: 100%;
+            padding: 8px 12px;
+            background: #22c55e;
+            color: white;
+            border: none;
+            border-radius: 0 0 6px 6px;
             cursor: pointer;
             font-size: 14px;
             display: flex;
@@ -863,26 +889,38 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
             margin-top: 4px;
           ">Abbrechen</button>
         `;
-        
-        el.appendChild(contextMenu);
-        
-        // Navigation button handler
-        const navigateBtn = contextMenu.querySelector('#navigate-btn');
-        const closeBtn = contextMenu.querySelector('#close-menu-btn');
-        
-        navigateBtn?.addEventListener('click', () => {
-          setNavigationDestination({
-            name: event.title,
-            coords: [event.lng, event.lat]
+        // Handle show route button click
+        const showRouteBtn = contextMenu.querySelector('#show-route-btn');
+        if (showRouteBtn) {
+          showRouteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showRouteToEvent(event);
+            contextMenu.remove();
           });
-          setIsNavigating(true);
-          contextMenu.remove();
-        });
+        }
         
-        closeBtn?.addEventListener('click', () => {
-          contextMenu.remove();
-        });
+        // Handle navigation button click
+        const navigateBtn = contextMenu.querySelector('#navigate-btn');
+        if (navigateBtn) {
+          navigateBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            setNavigationDestination({
+              name: event.title,
+              coords: [event.lng, event.lat]
+            });
+            setIsNavigating(true);
+            contextMenu.remove();
+          });
+        }
         
+        // Handle close button click
+        const closeBtn = contextMenu.querySelector('#close-menu-btn');
+        if (closeBtn) {
+          closeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            contextMenu.remove();
+          });
+        }
         // Close menu when clicking outside
         const closeOnClickOutside = (e: Event) => {
           if (!contextMenu.contains(e.target as Node)) {
@@ -990,6 +1028,31 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     setNavigationDestination(null);
   };
 
+  // Show simple route to event (not full navigation)
+  const showRouteToEvent = async (event: EventData) => {
+    if (!userLocation) {
+      toast.error('Standort wird noch ermittelt...');
+      return;
+    }
+
+    try {
+      clearRoute(); // Clear any existing route
+      setRouteDestination({
+        name: event.title,
+        coords: [event.lng, event.lat]
+      });
+      
+      const routeInfo = await calculateRoute([event.lng, event.lat], 'walking');
+      if (routeInfo) {
+        setShowRoute(true);
+        toast.success(`Route zu "${event.title}" wird angezeigt`);
+      }
+    } catch (error) {
+      console.error('Route calculation failed:', error);
+      toast.error('Route konnte nicht berechnet werden');
+    }
+  };
+
   return (
     <div className="relative w-full h-screen">
       {/* Add CSS for pulse animation */}
@@ -1052,8 +1115,42 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
 
       {/* UI Overlay - Higher Z-Index */}
       <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 10 }}>
-        {/* Search & Controls Bar - Only show when not navigating */}
-        {!isNavigating && (
+        {/* Route Controls - Show when route is active */}
+        {showRoute && routeDestination && !isNavigating && (
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 pointer-events-auto">
+            <div className="bg-card/95 backdrop-blur-md border border-border rounded-lg p-3 shadow-xl">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                  <span className="text-sm font-medium">Route zu: {routeDestination.name}</span>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => {
+                      setNavigationDestination(routeDestination);
+                      setIsNavigating(true);
+                    }}
+                    size="sm"
+                    variant="default"
+                  >
+                    <NavigationIcon className="w-4 h-4 mr-1" />
+                    Navigation
+                  </Button>
+                  <Button
+                    onClick={clearRoute}
+                    size="sm"
+                    variant="ghost"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Search & Controls Bar - Only show when not navigating and no route */}
+        {!isNavigating && !showRoute && (
           <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex gap-2 pointer-events-auto">
             <div className="relative" ref={searchContainerRef}>
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" style={{ zIndex: 12 }} />
