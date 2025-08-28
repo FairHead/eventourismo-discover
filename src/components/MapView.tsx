@@ -938,8 +938,13 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
 
     const venueGroups = safeEvents.reduce((groups, event) => {
       const v = event.venue;
-      const keyBase = v.id && v.id.trim().length > 0 ? v.id : `${normalize(v.name)}|${normalize(v.city)}`;
-      const key = keyBase; // keep fixed by venue identity; don't include coords to avoid new keys on slight shifts
+      const nameKey = normalize(v.name) || 'unknown';
+      const cityKey = normalize(v.city) || 'unknown';
+      let key = (v.id && v.id.trim().length > 0) ? v.id : `${nameKey}|${cityKey}`;
+      // If still too generic, include rounded coords for uniqueness (but we won't move existing markers later)
+      if (key === 'unknown|unknown') {
+        key = `${key}|${v.lat.toFixed(5)}_${v.lng.toFixed(5)}`;
+      }
       if (!groups[key]) {
         groups[key] = {
           key,
@@ -1011,6 +1016,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
           position: relative;
           z-index: 10;
           transform-origin: center;
+          pointer-events: auto;
         `;
         el.textContent = String(group.events.length);
 
