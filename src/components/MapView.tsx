@@ -918,23 +918,35 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     setClusterMarkers([]);
   };
 
-  // Update external event pins on map
+  // Update external event pins using HTML markers with clustering like regular events
   const updateExternalEventPins = (events: ExternalEvent[]) => {
-    if (!map.current) return;
+    if (!map.current || !isMapboxReady) return;
 
-    // Remove legacy HTML markers once (switch to GeoJSON layer for stability)
-    if (Object.keys(externalVenueMarkersMapRef.current).length > 0) {
-      Object.values(externalVenueMarkersMapRef.current).forEach(({ marker }) => {
-        try { marker.remove(); } catch {}
-      });
-      externalVenueMarkersMapRef.current = {};
-    }
+    console.info('Updating external event pins/clusters, events:', events.length);
 
-    // Prepare and group events by venue (with safe coordinates and stable keys)
+    // Clear existing venue layers and HTML markers
+    const sourceId = 'external-venues';
+    const circleLayerId = 'external-venues-circles';
+    const labelLayerId = 'external-venues-labels';
+
+    // Remove GeoJSON layers if they exist
+    if (map.current.getLayer(labelLayerId)) map.current.removeLayer(labelLayerId);
+    if (map.current.getLayer(circleLayerId)) map.current.removeLayer(circleLayerId);
+    if (map.current.getSource(sourceId)) map.current.removeSource(sourceId);
+
+    // Clear existing HTML markers
+    Object.values(externalVenueMarkersMapRef.current).forEach(({ marker }) => {
+      try { marker.remove(); } catch {}
+    });
+    externalVenueMarkersMapRef.current = {};
+
+    if (events.length === 0) return;
+
+    // Prepare and group events by venue with safe coordinates
     const safeEvents = events
       .map((e) => {
-        const lat = Number((e.venue as any).lat);
-        const lng = Number((e.venue as any).lng);
+        const lat = Number(e.venue.lat);
+        const lng = Number(e.venue.lng);
         return { ...e, venue: { ...e.venue, lat, lng } } as ExternalEvent;
       })
       .filter((e) =>
@@ -944,149 +956,166 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
         Math.abs(e.venue.lng) <= 180
       );
 
-    const normalize = (s?: string) => (s || '').toLowerCase().trim().replace(/\s+/g, '-');
-
-    const venueGroups = safeEvents.reduce((groups, event) => {
-      const v = event.venue;
-      const nameKey = normalize(v.name) || 'unknown';
-      const cityKey = normalize(v.city) || 'unknown';
-      let key = (v.id && v.id.trim().length > 0) ? v.id : `${nameKey}|${cityKey}`;
-      if (key === 'unknown|unknown') {
-        key = `${key}|${v.lat.toFixed(5)}_${v.lng.toFixed(5)}`;
+    // Group events by venue using stable keys
+    const venueGroups: Record<string, { venue: ExternalEvent['venue']; events: ExternalEvent[] }> = {};
+    
+    safeEvents.forEach(event => {
+      const venue = event.venue;
+      const key = venue.id 
+        ? `id:${venue.id}`
+        : venue.name && venue.city 
+          ? `name:${venue.name}:${venue.city}`
+          : `coords:${venue.lat.toFixed(6)}:${venue.lng.toFixed(6)}`;
+      
+      if (!venueGroups[key]) {
+        venueGroups[key] = { venue, events: [] };
       }
-      if (!groups[key]) {
-        groups[key] = {
-          key,
-          venue: v,
-          events: [] as ExternalEvent[],
-        };
-      }
-      groups[key].events.push(event);
-      return groups;
-    }, {} as Record<string, { key: string; venue: ExternalEvent['venue']; events: ExternalEvent[] }>);
-
-    // Deduplicate events per venue by id
-    Object.values(venueGroups).forEach((g) => {
-      const seen = new Set<string>();
-      g.events = g.events.filter((ev) => {
-        if (seen.has(ev.id)) return false;
-        seen.add(ev.id);
-        return true;
-      });
+      venueGroups[key].events.push(event);
     });
 
-    // Cache for click handling
-    externalVenueDataRef.current = Object.fromEntries(
-      Object.values(venueGroups).map((g) => [g.key, { venue: g.venue, events: g.events }])
-    );
-
-    // Build GeoJSON FeatureCollection
-    const features = Object.values(venueGroups).map((g) => ({
-      type: 'Feature' as const,
-      properties: {
-        key: g.key,
-        name: g.venue.name,
-        city: g.venue.city || '',
-        address: g.venue.address || '',
-        count: g.events.length,
-        sourceTag: g.events.some((e) => e.source === 'ticketmaster') ? 'ticketmaster' : 'other',
-      },
-      geometry: {
-        type: 'Point' as const,
-        coordinates: [g.venue.lng, g.venue.lat],
-      },
-    }));
-
-    const fc = { type: 'FeatureCollection' as const, features };
-
-    // Add or update source/layers
-    const sourceId = 'external-venues';
-    const circleLayerId = 'external-venues-circles';
-    const labelLayerId = 'external-venues-labels';
-
-    const existingSource = map.current.getSource(sourceId) as mapboxgl.GeoJSONSource | undefined;
-    if (existingSource) {
-      existingSource.setData(fc as any);
-    } else {
-      map.current.addSource(sourceId, { type: 'geojson', data: fc as any });
-
-      // Add location pin icon to map
-      const pinIconSvg = `
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-          <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
-          <circle cx="12" cy="10" r="3"/>
-        </svg>
-      `;
-      const pinIconDataUrl = `data:image/svg+xml;base64,${btoa(pinIconSvg)}`;
+    // Apply clustering logic for venues (similar to regular events)
+    const clusters = new Map<string, { 
+      venues: typeof venueGroups[string][]; 
+      centerLat: number; 
+      centerLng: number; 
+      dominantSource: string;
+    }>();
+    const clusterRadius = 0.01; // ~1km clustering radius
+    
+    Object.entries(venueGroups).forEach(([key, venueData]) => {
+      const venue = venueData.venue;
+      let clustered = false;
       
-      if (!map.current.hasImage('venue-pin-icon')) {
-        const img = new Image(24, 24);
-        img.onload = () => {
-          if (map.current && !map.current.hasImage('venue-pin-icon')) {
-            map.current.addImage('venue-pin-icon', img);
-          }
-        };
-        img.src = pinIconDataUrl;
+      // Check if this venue can be clustered with existing clusters
+      for (const [clusterKey, cluster] of clusters) {
+        const distance = Math.sqrt(
+          Math.pow(venue.lat - cluster.centerLat, 2) + 
+          Math.pow(venue.lng - cluster.centerLng, 2)
+        );
+        
+        if (distance < clusterRadius) {
+          cluster.venues.push(venueData);
+          // Recalculate center
+          const totalLat = cluster.venues.reduce((sum, v) => sum + v.venue.lat, 0);
+          const totalLng = cluster.venues.reduce((sum, v) => sum + v.venue.lng, 0);
+          cluster.centerLat = totalLat / cluster.venues.length;
+          cluster.centerLng = totalLng / cluster.venues.length;
+          // Update dominant source
+          const sourceCounts = cluster.venues.reduce((counts, v) => {
+            const source = v.events[0]?.source || 'other';
+            counts[source] = (counts[source] || 0) + 1;
+            return counts;
+          }, {} as Record<string, number>);
+          cluster.dominantSource = Object.entries(sourceCounts)
+            .sort(([,a], [,b]) => b - a)[0][0];
+          clustered = true;
+          break;
+        }
+      }
+      
+      // Create new cluster if not clustered
+      if (!clustered) {
+        const clusterKey = `cluster_${venue.lat}_${venue.lng}`;
+        clusters.set(clusterKey, {
+          venues: [venueData],
+          centerLat: venue.lat,
+          centerLng: venue.lng,
+          dominantSource: venueData.events[0]?.source || 'other'
+        });
+      }
+    });
+
+    // Create HTML markers for clusters (same size as regular event pins)
+    clusters.forEach((cluster, clusterKey) => {
+      const totalEvents = cluster.venues.reduce((sum, v) => sum + v.events.length, 0);
+      const isCluster = cluster.venues.length > 1;
+      const isTicketmaster = cluster.dominantSource === 'ticketmaster';
+      
+      // Create marker element (same structure as regular event pins)
+      const el = document.createElement('div');
+      el.style.cursor = 'pointer';
+      el.style.zIndex = '100';
+
+      const inner = document.createElement('div');
+      inner.style.width = '32px';
+      inner.style.height = '32px';
+      inner.style.borderRadius = '50%';
+      inner.style.display = 'flex';
+      inner.style.alignItems = 'center';
+      inner.style.justifyContent = 'center';
+      inner.style.fontSize = isCluster ? '14px' : '16px';
+      inner.style.fontWeight = isCluster ? 'bold' : 'normal';
+      inner.style.userSelect = 'none';
+      inner.style.backgroundColor = 'white';
+      inner.style.border = `3px solid ${isTicketmaster ? '#1d4ed8' : '#059669'}`;
+      inner.style.boxShadow = '0 2px 10px rgba(0,0,0,0.3)';
+      inner.style.transition = 'transform 0.2s ease';
+      inner.style.transformOrigin = 'center center';
+      inner.style.willChange = 'transform';
+
+      if (isCluster) {
+        // Show venue count for clusters
+        inner.textContent = cluster.venues.length.toString();
+        inner.style.color = isTicketmaster ? '#1d4ed8' : '#059669';
+      } else {
+        // Show location icon for single venues
+        inner.innerHTML = '📍';
       }
 
-      // Location pin icons
-      map.current.addLayer({
-        id: labelLayerId,
-        type: 'symbol',
-        source: sourceId,
-        layout: {
-          'icon-image': 'venue-pin-icon',
-          'icon-size': [
-            'match', ['get', 'sourceTag'],
-            'ticketmaster', 1.2,
-            /* other */ 1.0
-          ],
-          'icon-allow-overlap': true,
-          'icon-anchor': 'bottom',
-        },
-        paint: {
-          'icon-color': [
-            'match', ['get', 'sourceTag'],
-            'ticketmaster', '#1d4ed8',
-            /* other */ '#059669'
-          ],
-        },
+      el.appendChild(inner);
+
+      // Hover effects (same as regular event pins)
+      el.addEventListener('mouseenter', () => {
+        inner.style.transform = 'scale(1.2)';
+        el.style.zIndex = '200';
       });
 
-      // Interactions (once)
-      if (!externalVenueLayerReadyRef.current) {
-        externalVenueLayerReadyRef.current = true;
+      el.addEventListener('mouseleave', () => {
+        inner.style.transform = 'scale(1)';
+        el.style.zIndex = '100';
+      });
 
-        const openPanel = (f: any) => {
-          const props = f.properties || {};
-          const key = props.key as string;
-          const data = externalVenueDataRef.current[key];
-          if (data) {
-            setSelectedVenueEvents(data.events);
-            setSelectedVenueName(data.venue.name);
-            setSelectedVenueAddress(`${data.venue.address || ''}, ${data.venue.city || ''}`.replace(/^,\s*/, ''));
-            setShowExternalEventsPanel(true);
-          }
-        };
+      // Click handler
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        
+        if (isCluster) {
+          // Zoom to cluster area (same as regular event clusters)
+          map.current?.flyTo({
+            center: [cluster.centerLng, cluster.centerLat],
+            zoom: Math.min(map.current.getZoom() + 2, 16),
+            duration: 1000
+          });
+        } else {
+          // Open events panel for single venue
+          const venueData = cluster.venues[0];
+          setSelectedVenueEvents(venueData.events);
+          setSelectedVenueName(venueData.venue.name);
+          setSelectedVenueAddress(`${venueData.venue.address || ''}, ${venueData.venue.city || ''}`.replace(/^,\s*/, ''));
+          setShowExternalEventsPanel(true);
+        }
+      });
 
-        map.current.on('mouseenter', circleLayerId, () => {
-          map.current && (map.current.getCanvas().style.cursor = 'pointer');
-        });
-        map.current.on('mouseleave', circleLayerId, () => {
-          map.current && (map.current.getCanvas().style.cursor = '');
-        });
-        map.current.on('click', circleLayerId, (e) => {
-          if (!e.features || e.features.length === 0) return;
-          openPanel(e.features[0]);
-        });
-        map.current.on('click', labelLayerId, (e) => {
-          if (!e.features || e.features.length === 0) return;
-          openPanel(e.features[0]);
-        });
-      }
-    }
+      // Create and add marker
+      const marker = new mapboxgl.Marker({
+        element: el,
+        anchor: 'center'
+      })
+        .setLngLat([cluster.centerLng, cluster.centerLat])
+        .addTo(map.current!);
 
-    // Update cache key (debug/consistency)
+      // Store marker reference
+      externalVenueMarkersMapRef.current[clusterKey] = {
+        marker,
+        el: inner,
+        venue: cluster.venues[0].venue,  // Use first venue as representative
+        events: cluster.venues.reduce((all, v) => [...all, ...v.events], [] as ExternalEvent[])
+      };
+    });
+
+    // Update cache for consistency
+    externalVenueDataRef.current = venueGroups;
     const newPinsKey = Object.keys(venueGroups).sort().join('|') + `:${safeEvents.length}`;
     lastExternalPinsKeyRef.current = newPinsKey;
   };
