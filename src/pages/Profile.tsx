@@ -11,6 +11,7 @@ import RoleSpecificSettings from '@/components/RoleSpecificSettings';
 import ArtistProfileModal from '@/components/ArtistProfileModal';
 import FavoritesDashboard from '@/components/FavoritesDashboard';
 import EventsCalendar from '@/components/EventsCalendar';
+import MyEventsSection from '@/components/MyEventsSection';
 import { useNavigate } from 'react-router-dom';
 import { 
   User, 
@@ -270,6 +271,9 @@ const Profile: React.FC = () => {
 
       {/* Favorites Dashboard */}
       <FavoritesDashboard />
+
+      {/* My Events Section */}
+      <MyEventsSection />
 
       {/* Events Calendar */}
       <EventsCalendar />
