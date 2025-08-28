@@ -920,13 +920,9 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
 
   // Update external event pins using HTML markers with clustering like regular events
   const updateExternalEventPins = (events: ExternalEvent[]) => {
-    if (!map.current || !isMapboxReady) {
-      console.warn('Map not ready for external event pins update');
-      return;
-    }
+    if (!map.current || !isMapboxReady) return;
 
-    console.info('🎯 Updating external event pins/clusters, events:', events.length);
-    console.info('🎯 Sample events:', events.slice(0, 2));
+    console.info('Updating external event pins/clusters, events:', events.length);
 
     // Clear existing venue layers and HTML markers
     const sourceId = 'external-venues';
@@ -1030,13 +1026,10 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     });
 
     // Create HTML markers for clusters (same size as regular event pins)
-    console.info('🎯 Creating venue pins/clusters:', clusters.size);
     clusters.forEach((cluster, clusterKey) => {
       const totalEvents = cluster.venues.reduce((sum, v) => sum + v.events.length, 0);
       const isCluster = cluster.venues.length > 1;
       const isTicketmaster = cluster.dominantSource === 'ticketmaster';
-      
-      console.info(`🎯 Creating ${isCluster ? 'cluster' : 'single'} venue pin at [${cluster.centerLng}, ${cluster.centerLat}] with ${totalEvents} events`);
       
       // Create marker element (same structure as regular event pins)
       const el = document.createElement('div');
@@ -1065,7 +1058,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
         inner.textContent = cluster.venues.length.toString();
         inner.style.color = isTicketmaster ? '#1d4ed8' : '#059669';
       } else {
-        // Show location icon for single venues
+        // Show location pin icon for single venues (matching event pins)
         inner.innerHTML = '📍';
       }
 
@@ -1105,26 +1098,20 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       });
 
       // Create and add marker
-      try {
-        const marker = new mapboxgl.Marker({
-          element: el,
-          anchor: 'center'
-        })
-          .setLngLat([cluster.centerLng, cluster.centerLat])
-          .addTo(map.current!);
+      const marker = new mapboxgl.Marker({
+        element: el,
+        anchor: 'center'
+      })
+        .setLngLat([cluster.centerLng, cluster.centerLat])
+        .addTo(map.current!);
 
-        console.info(`🎯 Successfully created venue marker for ${clusterKey} at [${cluster.centerLng}, ${cluster.centerLat}]`);
-
-        // Store marker reference
-        externalVenueMarkersMapRef.current[clusterKey] = {
-          marker,
-          el: inner,
-          venue: cluster.venues[0].venue,  // Use first venue as representative
-          events: cluster.venues.reduce((all, v) => [...all, ...v.events], [] as ExternalEvent[])
-        };
-      } catch (error) {
-        console.error('🎯 Error creating venue marker:', error);
-      }
+      // Store marker reference
+      externalVenueMarkersMapRef.current[clusterKey] = {
+        marker,
+        el: inner,
+        venue: cluster.venues[0].venue,  // Use first venue as representative
+        events: cluster.venues.reduce((all, v) => [...all, ...v.events], [] as ExternalEvent[])
+      };
     });
 
     // Update cache for consistency
