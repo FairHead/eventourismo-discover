@@ -3,9 +3,10 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, Filter, MapPin, Users, Navigation as NavigationIcon, X } from 'lucide-react';
+import { Search, Filter, MapPin, Users, Navigation as NavigationIcon, X, Heart } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 import NavigationSystem from './NavigationSystem';
 
 interface MapViewProps {
@@ -48,6 +49,8 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const [isMapboxReady, setIsMapboxReady] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const { user } = useAuth();
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
@@ -74,6 +77,76 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     coords: [number, number];
   } | null>(null);
   // Removed Mapbox popup state to avoid duplicate UI
+
+  // Fetch user's favorites
+  const fetchFavorites = async () => {
+    if (!user) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('favorites')
+        .select('target_id')
+        .eq('user_id', user.id)
+        .eq('target_type', 'event');
+
+      if (error) throw error;
+
+      setFavorites(new Set(data?.map(fav => fav.target_id) || []));
+    } catch (error) {
+      console.error('Error fetching favorites:', error);
+    }
+  };
+
+  // Toggle favorite status
+  const toggleFavorite = async (eventId: string) => {
+    if (!user) {
+      toast.error("Bitte melden Sie sich an, um Favoriten zu verwalten");
+      return;
+    }
+
+    try {
+      const isFavorite = favorites.has(eventId);
+      
+      if (isFavorite) {
+        const { error } = await supabase
+          .from('favorites')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('target_id', eventId)
+          .eq('target_type', 'event');
+
+        if (error) throw error;
+
+        setFavorites(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(eventId);
+          return newSet;
+        });
+        toast.success("Event aus Favoriten entfernt");
+      } else {
+        const { error } = await supabase
+          .from('favorites')
+          .insert({
+            user_id: user.id,
+            target_id: eventId,
+            target_type: 'event'
+          });
+
+        if (error) throw error;
+
+        setFavorites(prev => new Set([...prev, eventId]));
+        toast.success("Event zu Favoriten hinzugefügt");
+      }
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+      toast.error("Fehler beim Verwalten der Favoriten");
+    }
+  };
+
+  // Load favorites when user changes
+  useEffect(() => {
+    fetchFavorites();
+  }, [user]);
 
   // Fetch Mapbox token from Edge Function
   useEffect(() => {
@@ -877,16 +950,37 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
           z-index: 1000;
           min-width: 200px;
         `;
+        const isFavorite = favorites.has(event.id);
         
         contextMenu.innerHTML = `
           <div style="font-weight: bold; margin-bottom: 8px; color: #333;">${event.title}</div>
+          <button id="favorite-btn" style="
+            width: 100%;
+            padding: 8px 12px;
+            background: ${isFavorite ? '#ef4444' : '#f97316'};
+            color: white;
+            border: none;
+            border-radius: 6px 6px 0 0;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+          ">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="${isFavorite ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2">
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+            </svg>
+            ${isFavorite ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen'}
+          </button>
           <button id="show-route-btn" style="
             width: 100%;
             padding: 8px 12px;
             background: #3b82f6;
             color: white;
             border: none;
-            border-radius: 6px 6px 0 0;
+            border-radius: 0;
             cursor: pointer;
             font-size: 14px;
             display: flex;
@@ -931,6 +1025,16 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
             margin-top: 4px;
           ">Abbrechen</button>
         `;
+        
+        // Handle favorite button click
+        const favoriteBtn = contextMenu.querySelector('#favorite-btn');
+        if (favoriteBtn) {
+          favoriteBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            await toggleFavorite(event.id);
+            contextMenu.remove();
+          });
+        }
         // Handle show route button click
         const showRouteBtn = contextMenu.querySelector('#show-route-btn');
         if (showRouteBtn) {

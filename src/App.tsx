@@ -9,14 +9,19 @@ import Auth from "./pages/Auth";
 import BandProfile from "./pages/BandProfile";
 import EventCreate from "./pages/EventCreate";
 import Search from "./pages/Search";
+import Favorites from "./pages/Favorites";
 import BottomNavigation from "./components/BottomNavigation";
 import ProtectedRoute from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
 import { useSeedEvents } from "./hooks/useSeedEvents";
+import { useEventNotifications } from "./hooks/useEventNotifications";
 
 const App = () => {
   // Seed sample events on app start
   useSeedEvents();
+  
+  // Initialize event notifications
+  useEventNotifications();
 
   return (
     <TooltipProvider>
@@ -42,7 +47,7 @@ const App = () => {
         } />
         <Route path="/favorites" element={
           <ProtectedRoute>
-            <div className="p-4 pb-20">Favoriten (coming soon)</div>
+            <Favorites />
           </ProtectedRoute>
         } />
         <Route path="/profile" element={

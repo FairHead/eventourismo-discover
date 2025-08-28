@@ -9,6 +9,8 @@ import { useToast } from '@/hooks/use-toast';
 import ProfilePictureUpload from '@/components/ProfilePictureUpload';
 import RoleSpecificSettings from '@/components/RoleSpecificSettings';
 import ArtistProfileModal from '@/components/ArtistProfileModal';
+import FavoritesDashboard from '@/components/FavoritesDashboard';
+import { useNavigate } from 'react-router-dom';
 import { 
   User, 
   Settings, 
@@ -25,6 +27,7 @@ import {
 const Profile: React.FC = () => {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [userProfile, setUserProfile] = useState<any>(null);
   const [artistProfile, setArtistProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -264,12 +267,14 @@ const Profile: React.FC = () => {
         />
       )}
 
+      {/* Favorites Dashboard */}
+      <FavoritesDashboard />
+
       {/* Menu Items */}
       <Card className="border-border">
         <CardContent className="p-0">
           <div className="space-y-0">
             {[
-              { icon: Heart, label: 'Meine Favoriten', path: '/favorites' },
               { icon: Calendar, label: 'Meine Events', path: '/my-events' },
               { icon: Bell, label: 'Benachrichtigungen', path: '/notifications' },
               { icon: Settings, label: 'Einstellungen', path: '/settings' },
@@ -279,6 +284,7 @@ const Profile: React.FC = () => {
                 <Button 
                   variant="ghost" 
                   className="w-full justify-between p-4 h-auto rounded-none hover:bg-muted/50"
+                  onClick={() => navigate(item.path)}
                 >
                   <div className="flex items-center gap-3">
                     <item.icon className="w-5 h-5 text-muted-foreground" />
@@ -286,7 +292,7 @@ const Profile: React.FC = () => {
                   </div>
                   <ChevronRight className="w-4 h-4 text-muted-foreground" />
                 </Button>
-                {index < 4 && <Separator className="mx-4" />}
+                {index < 3 && <Separator className="mx-4" />}
               </React.Fragment>
             ))}
           </div>
