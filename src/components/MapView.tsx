@@ -832,15 +832,31 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
         addEventPins();
         // Show venue pins separately when zoomed in
         updateExternalEventPins(externalEvents);
-      } else {
+      } else if (currentZoom >= 10) {
         clearMarkers();
         // Clear venue markers when clustering
         Object.values(externalVenueMarkersMapRef.current).forEach(({ marker }) => {
           try { marker.remove(); } catch {}
         });
         externalVenueMarkersMapRef.current = {};
-        // Show combined clusters of events and venues
+        // Show combined clusters of events and venues (fine-grained)
         addCombinedClusters();
+      } else if (currentZoom >= 8) {
+        clearMarkers();
+        Object.values(externalVenueMarkersMapRef.current).forEach(({ marker }) => {
+          try { marker.remove(); } catch {}
+        });
+        externalVenueMarkersMapRef.current = {};
+        // Show city-level clusters
+        addCityClusters();
+      } else {
+        clearMarkers();
+        Object.values(externalVenueMarkersMapRef.current).forEach(({ marker }) => {
+          try { marker.remove(); } catch {}
+        });
+        externalVenueMarkersMapRef.current = {};
+        // Show state/country-level clusters
+        addStateClusters();
       }
     }
   }, [events, isMapboxReady, currentZoom, externalEvents]);
@@ -1280,6 +1296,305 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
   };
 
   const addCityClusters = () => {
+    if (!map.current) return;
+
+    // Clear existing cluster markers
+    clearClusterMarkers();
+    const newClusterMarkers: mapboxgl.Marker[] = [];
+
+    // Combine regular events and external venue events
+    const activeEvents = events.filter(event => {
+      const status = getEventStatus(event.start_utc, event.end_utc);
+      return status !== 'past';
+    });
+
+    // Convert external events to unified format for clustering
+    const externalAsEvents = externalEvents.flatMap(extEvent => ({
+      id: `ext_${extEvent.id}`,
+      title: extEvent.title,
+      lat: extEvent.venue.lat,
+      lng: extEvent.venue.lng,
+      type: 'external' as const,
+      source: extEvent.source,
+      city: extEvent.venue.city || 'Unknown',
+      originalEvent: extEvent
+    }));
+
+    const regularAsEvents = activeEvents.map(event => ({
+      id: event.id,  
+      title: event.title,
+      lat: event.lat,
+      lng: event.lng,
+      type: 'regular' as const,
+      city: 'User Event', // Default city for user events
+      originalEvent: event
+    }));
+
+    const allEvents = [...regularAsEvents, ...externalAsEvents];
+
+    // Group events by city (0.2 degree grid ~ 22km for city-level clustering)
+    const cityGrid = 5; // 0.2 degree grid
+    const clusters = new Map<string, typeof allEvents>();
+    
+    allEvents.forEach(event => {
+      const gridLat = Math.floor(event.lat * cityGrid) / cityGrid;
+      const gridLng = Math.floor(event.lng * cityGrid) / cityGrid;
+      const gridKey = `${gridLat},${gridLng}`;
+      
+      if (!clusters.has(gridKey)) {
+        clusters.set(gridKey, []);
+      }
+      clusters.get(gridKey)!.push(event);
+    });
+
+    console.log('Creating', clusters.size, 'city-level clusters');
+
+    clusters.forEach((clusterEvents, gridKey) => {
+      const [gridLat, gridLng] = gridKey.split(',').map(Number);
+      
+      // Calculate cluster center (average position)
+      const centerLat = clusterEvents.reduce((sum, e) => sum + e.lat, 0) / clusterEvents.length;
+      const centerLng = clusterEvents.reduce((sum, e) => sum + e.lng, 0) / clusterEvents.length;
+      
+      // Count events by type
+      const regularCount = clusterEvents.filter(e => e.type === 'regular').length;
+      const externalCount = clusterEvents.filter(e => e.type === 'external').length;
+      const totalCount = clusterEvents.length;
+
+      // Get most common city name for display
+      const cityNames = clusterEvents.map(e => e.city).filter(city => city !== 'User Event');
+      const mostCommonCity = cityNames.length > 0 
+        ? cityNames.reduce((a, b, i, arr) => 
+            arr.filter(v => v === a).length >= arr.filter(v => v === b).length ? a : b
+          )
+        : 'Stadt';
+
+      const el = document.createElement('div');
+      el.style.cursor = 'pointer';
+      el.style.zIndex = '100';
+      
+      const cluster = document.createElement('div');
+      cluster.style.width = '50px';
+      cluster.style.height = '50px';
+      cluster.style.borderRadius = '50%';
+      cluster.style.display = 'flex';
+      cluster.style.alignItems = 'center';
+      cluster.style.justifyContent = 'center';
+      cluster.style.fontSize = '12px';
+      cluster.style.fontWeight = 'bold';
+      cluster.style.color = 'white';
+      cluster.style.backgroundColor = '#8b5cf6'; // Purple for city clusters
+      cluster.style.border = '3px solid white';
+      cluster.style.boxShadow = '0 2px 10px rgba(0,0,0,0.3)';
+      cluster.style.transition = 'transform 0.2s ease';
+      cluster.style.flexDirection = 'column';
+      cluster.style.lineHeight = '1';
+      
+      // Show city name and count
+      const cityLabel = document.createElement('div');
+      cityLabel.style.fontSize = '8px';
+      cityLabel.style.fontWeight = 'normal';
+      cityLabel.textContent = mostCommonCity.substring(0, 6);
+      
+      const countLabel = document.createElement('div');
+      countLabel.style.fontSize = '14px';
+      countLabel.style.fontWeight = 'bold';
+      countLabel.textContent = totalCount.toString();
+      
+      cluster.appendChild(cityLabel);
+      cluster.appendChild(countLabel);
+      el.appendChild(cluster);
+
+      // Hover effects
+      el.addEventListener('mouseenter', () => {
+        cluster.style.transform = 'scale(1.2)';
+      });
+
+      el.addEventListener('mouseleave', () => {
+        cluster.style.transform = 'scale(1)';
+      });
+
+      // Click to zoom in to show combined clusters
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        
+        if (map.current) {
+          map.current.flyTo({
+            center: [centerLng, centerLat],
+            zoom: 11,
+            duration: 1500
+          });
+        }
+      });
+
+      const marker = new mapboxgl.Marker({
+        element: el,
+        anchor: 'center'
+      })
+        .setLngLat([centerLng, centerLat])
+        .addTo(map.current!);
+      
+      newClusterMarkers.push(marker);
+    });
+
+    setClusterMarkers(newClusterMarkers);
+  };
+
+  const addStateClusters = () => {
+    if (!map.current) return;
+
+    // Clear existing cluster markers
+    clearClusterMarkers();
+    const newClusterMarkers: mapboxgl.Marker[] = [];
+
+    // Combine regular events and external venue events
+    const activeEvents = events.filter(event => {
+      const status = getEventStatus(event.start_utc, event.end_utc);
+      return status !== 'past';
+    });
+
+    // Convert external events to unified format for clustering
+    const externalAsEvents = externalEvents.flatMap(extEvent => ({
+      id: `ext_${extEvent.id}`,
+      title: extEvent.title,
+      lat: extEvent.venue.lat,
+      lng: extEvent.venue.lng,
+      type: 'external' as const,
+      source: extEvent.source,
+      originalEvent: extEvent
+    }));
+
+    const regularAsEvents = activeEvents.map(event => ({
+      id: event.id,  
+      title: event.title,
+      lat: event.lat,
+      lng: event.lng,
+      type: 'regular' as const,
+      originalEvent: event
+    }));
+
+    const allEvents = [...regularAsEvents, ...externalAsEvents];
+
+    // Group events by state/large region (1 degree grid ~ 111km for state-level clustering)
+    const stateGrid = 1; // 1 degree grid
+    const clusters = new Map<string, typeof allEvents>();
+    
+    allEvents.forEach(event => {
+      const gridLat = Math.floor(event.lat * stateGrid) / stateGrid;
+      const gridLng = Math.floor(event.lng * stateGrid) / stateGrid;
+      const gridKey = `${gridLat},${gridLng}`;
+      
+      if (!clusters.has(gridKey)) {
+        clusters.set(gridKey, []);
+      }
+      clusters.get(gridKey)!.push(event);
+    });
+
+    console.log('Creating', clusters.size, 'state-level clusters');
+
+    clusters.forEach((clusterEvents, gridKey) => {
+      const [gridLat, gridLng] = gridKey.split(',').map(Number);
+      
+      // Calculate cluster center (average position)
+      const centerLat = clusterEvents.reduce((sum, e) => sum + e.lat, 0) / clusterEvents.length;
+      const centerLng = clusterEvents.reduce((sum, e) => sum + e.lng, 0) / clusterEvents.length;
+      
+      // Count events by type
+      const regularCount = clusterEvents.filter(e => e.type === 'regular').length;
+      const externalCount = clusterEvents.filter(e => e.type === 'external').length;
+      const totalCount = clusterEvents.length;
+
+      // Determine state/region name based on coordinates (simplified for Germany)
+      const getStateName = (lat: number, lng: number) => {
+        if (lat > 53.5) return 'SH/HH'; // Schleswig-Holstein/Hamburg
+        if (lat > 52.5 && lng < 10) return 'NDS'; // Niedersachsen
+        if (lat > 52.5 && lng < 13) return 'ST'; // Sachsen-Anhalt
+        if (lat > 51.5 && lng > 13) return 'BB'; // Brandenburg
+        if (lat > 51.5 && lng < 7) return 'NRW'; // Nordrhein-Westfalen
+        if (lat > 50.5 && lng < 8) return 'RLP'; // Rheinland-Pfalz
+        if (lat > 49.5 && lng < 9) return 'BW'; // Baden-Württemberg
+        if (lat > 49.5 && lng > 11) return 'BY'; // Bayern
+        if (lat > 50.5 && lng > 12) return 'SN'; // Sachsen
+        if (lat > 50.5 && lng > 10) return 'TH'; // Thüringen
+        return 'DE'; // Default Deutschland
+      };
+
+      const stateName = getStateName(centerLat, centerLng);
+
+      const el = document.createElement('div');
+      el.style.cursor = 'pointer';
+      el.style.zIndex = '100';
+      
+      const cluster = document.createElement('div');
+      cluster.style.width = '60px';
+      cluster.style.height = '60px';
+      cluster.style.borderRadius = '50%';
+      cluster.style.display = 'flex';
+      cluster.style.alignItems = 'center';
+      cluster.style.justifyContent = 'center';
+      cluster.style.fontSize = '12px';
+      cluster.style.fontWeight = 'bold';
+      cluster.style.color = 'white';
+      cluster.style.backgroundColor = '#dc2626'; // Red for state clusters
+      cluster.style.border = '3px solid white';
+      cluster.style.boxShadow = '0 2px 10px rgba(0,0,0,0.3)';
+      cluster.style.transition = 'transform 0.2s ease';
+      cluster.style.flexDirection = 'column';
+      cluster.style.lineHeight = '1';
+      
+      // Show state name and count
+      const stateLabel = document.createElement('div');
+      stateLabel.style.fontSize = '9px';
+      stateLabel.style.fontWeight = 'normal';
+      stateLabel.textContent = stateName;
+      
+      const countLabel = document.createElement('div');
+      countLabel.style.fontSize = '16px';
+      countLabel.style.fontWeight = 'bold';
+      countLabel.textContent = totalCount.toString();
+      
+      cluster.appendChild(stateLabel);
+      cluster.appendChild(countLabel);
+      el.appendChild(cluster);
+
+      // Hover effects
+      el.addEventListener('mouseenter', () => {
+        cluster.style.transform = 'scale(1.2)';
+      });
+
+      el.addEventListener('mouseleave', () => {
+        cluster.style.transform = 'scale(1)';
+      });
+
+      // Click to zoom in to show city clusters
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        
+        if (map.current) {
+          map.current.flyTo({
+            center: [centerLng, centerLat],
+            zoom: 9,
+            duration: 1500
+          });
+        }
+      });
+
+      const marker = new mapboxgl.Marker({
+        element: el,
+        anchor: 'center'
+      })
+        .setLngLat([centerLng, centerLat])
+        .addTo(map.current!);
+      
+      newClusterMarkers.push(marker);
+    });
+
+    setClusterMarkers(newClusterMarkers);
+  };
+
+  const addLegacyCityClusters = () => {
     if (!map.current) return;
 
     // Clear existing cluster markers
