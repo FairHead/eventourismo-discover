@@ -177,6 +177,18 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
 
       setExternalEvents(events);
       updateExternalEventPins(events);
+      
+      // Debug logging for venues
+      const venues = events.reduce((acc, event) => {
+        const key = `${event.venue.name} (${event.venue.address}, ${event.venue.city})`;
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(event.title);
+        return acc;
+      }, {} as Record<string, string[]>);
+      
+      console.info('🎪 Found venues with events:', Object.entries(venues).map(([venue, eventTitles]) => 
+        `${venue}: ${eventTitles.length} events (${eventTitles.join(', ')})`
+      ).join('\n'));
     } catch (error) {
       console.error('Error fetching external events:', error);
     }
