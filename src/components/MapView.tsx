@@ -1010,40 +1010,46 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     } else {
       map.current.addSource(sourceId, { type: 'geojson', data: fc as any });
 
-      // Simple location pins
-      map.current.addLayer({
-        id: circleLayerId,
-        type: 'circle',
-        source: sourceId,
-        paint: {
-          'circle-radius': 8,
-          'circle-color': [
-            'match', ['get', 'sourceTag'],
-            'ticketmaster', '#1d4ed8',
-            /* other */ '#059669'
-          ],
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': 2,
-          'circle-opacity': 0.9,
-        },
-      });
+      // Add location pin icon to map
+      const pinIconSvg = `
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+          <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
+          <circle cx="12" cy="10" r="3"/>
+        </svg>
+      `;
+      const pinIconDataUrl = `data:image/svg+xml;base64,${btoa(pinIconSvg)}`;
+      
+      if (!map.current.hasImage('venue-pin-icon')) {
+        const img = new Image(24, 24);
+        img.onload = () => {
+          if (map.current && !map.current.hasImage('venue-pin-icon')) {
+            map.current.addImage('venue-pin-icon', img);
+          }
+        };
+        img.src = pinIconDataUrl;
+      }
 
-      // Location pin icon
+      // Location pin icons
       map.current.addLayer({
         id: labelLayerId,
         type: 'symbol',
         source: sourceId,
         layout: {
-          'icon-image': 'mapbox-marker-icon-default',
-          'icon-size': 0.5,
+          'icon-image': 'venue-pin-icon',
+          'icon-size': [
+            'match', ['get', 'sourceTag'],
+            'ticketmaster', 1.2,
+            /* other */ 1.0
+          ],
           'icon-allow-overlap': true,
-          'text-field': '📍',
-          'text-size': 14,
-          'text-allow-overlap': true,
-          'text-offset': [0, 0],
+          'icon-anchor': 'bottom',
         },
         paint: {
-          'text-color': '#ffffff',
+          'icon-color': [
+            'match', ['get', 'sourceTag'],
+            'ticketmaster', '#1d4ed8',
+            /* other */ '#059669'
+          ],
         },
       });
 
