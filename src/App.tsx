@@ -12,12 +12,17 @@ import Search from "./pages/Search";
 import BottomNavigation from "./components/BottomNavigation";
 import ProtectedRoute from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
+import { useSeedEvents } from "./hooks/useSeedEvents";
 
-const App = () => (
-  <TooltipProvider>
-    <Toaster />
-    <Sonner />
-    <div className="relative">
+const App = () => {
+  // Seed sample events on app start
+  useSeedEvents();
+
+  return (
+    <TooltipProvider>
+      <Toaster />
+      <Sonner />
+      <div className="relative">
       <Routes>
         <Route path="/auth" element={<Auth />} />
         <Route path="/" element={
@@ -52,10 +57,11 @@ const App = () => (
         } />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<NotFound />} />
-      </Routes>
-      <BottomNavigation />
-    </div>
-  </TooltipProvider>
-);
+        </Routes>
+        <BottomNavigation />
+      </div>
+    </TooltipProvider>
+  );
+};
 
 export default App;
