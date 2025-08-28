@@ -263,7 +263,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/dark-v11',
-      center: [13.404954, 52.520008], // Berlin default
+      center: [11.0767, 49.4521], // Nürnberg default
       zoom: 12,
       pitch: 45,
     });
