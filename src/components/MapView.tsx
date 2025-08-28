@@ -830,12 +830,20 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       if (currentZoom >= 12) {
         clearClusterMarkers();
         addEventPins();
+        // Show venue pins separately when zoomed in
+        updateExternalEventPins(externalEvents);
       } else {
         clearMarkers();
-        addCityClusters();
+        // Clear venue markers when clustering
+        Object.values(externalVenueMarkersMapRef.current).forEach(({ marker }) => {
+          try { marker.remove(); } catch {}
+        });
+        externalVenueMarkersMapRef.current = {};
+        // Show combined clusters of events and venues
+        addCombinedClusters();
       }
     }
-  }, [events, isMapboxReady, currentZoom]);
+  }, [events, isMapboxReady, currentZoom, externalEvents]);
 
   // Auto-update event statuses every minute
   useEffect(() => {
@@ -1139,11 +1147,138 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     lastExternalPinsKeyRef.current = newPinsKey;
   };
 
-  // Refresh external venue pins when data or readiness changes
+  // Refresh external venue pins when data or readiness changes (only when zoomed in)
   useEffect(() => {
-    if (!map.current || !isMapboxReady) return;
+    if (!map.current || !isMapboxReady || currentZoom < 12) return;
     updateExternalEventPins(externalEvents);
-  }, [externalEvents, isMapboxReady]);
+  }, [externalEvents, isMapboxReady, currentZoom]);
+  const addCombinedClusters = () => {
+    if (!map.current) return;
+
+    // Clear existing cluster markers
+    clearClusterMarkers();
+    const newClusterMarkers: mapboxgl.Marker[] = [];
+
+    // Combine regular events and external venue events
+    const activeEvents = events.filter(event => {
+      const status = getEventStatus(event.start_utc, event.end_utc);
+      return status !== 'past';
+    });
+
+    // Convert external events to unified format for clustering
+    const externalAsEvents = externalEvents.flatMap(extEvent => ({
+      id: `ext_${extEvent.id}`,
+      title: extEvent.title,
+      lat: extEvent.venue.lat,
+      lng: extEvent.venue.lng,
+      type: 'external' as const,
+      source: extEvent.source,
+      originalEvent: extEvent
+    }));
+
+    const regularAsEvents = activeEvents.map(event => ({
+      id: event.id,  
+      title: event.title,
+      lat: event.lat,
+      lng: event.lng,
+      type: 'regular' as const,
+      originalEvent: event
+    }));
+
+    const allEvents = [...regularAsEvents, ...externalAsEvents];
+
+    // Group events by approximate location (0.1 degree grid ~ 11km)
+    const clusters = new Map<string, typeof allEvents>();
+    
+    allEvents.forEach(event => {
+      const gridLat = Math.floor(event.lat * 10) / 10;
+      const gridLng = Math.floor(event.lng * 10) / 10;
+      const gridKey = `${gridLat},${gridLng}`;
+      
+      if (!clusters.has(gridKey)) {
+        clusters.set(gridKey, []);
+      }
+      clusters.get(gridKey)!.push(event);
+    });
+
+    console.log('Creating', clusters.size, 'combined clusters (events + venues)');
+
+    clusters.forEach((clusterEvents, gridKey) => {
+      const [gridLat, gridLng] = gridKey.split(',').map(Number);
+      
+      // Calculate cluster center (average position)
+      const centerLat = clusterEvents.reduce((sum, e) => sum + e.lat, 0) / clusterEvents.length;
+      const centerLng = clusterEvents.reduce((sum, e) => sum + e.lng, 0) / clusterEvents.length;
+      
+      // Count events by type
+      const regularCount = clusterEvents.filter(e => e.type === 'regular').length;
+      const externalCount = clusterEvents.filter(e => e.type === 'external').length;
+      const totalCount = clusterEvents.length;
+
+      // Determine dominant type for cluster styling
+      const isExternalDominant = externalCount > regularCount;
+      const hasTicketmaster = clusterEvents.some(e => e.type === 'external' && (e as any).source === 'ticketmaster');
+
+      const el = document.createElement('div');
+      el.style.cursor = 'pointer';
+      el.style.zIndex = '100';
+      
+      const cluster = document.createElement('div');
+      cluster.style.width = '40px';
+      cluster.style.height = '40px';
+      cluster.style.borderRadius = '50%';
+      cluster.style.display = 'flex';
+      cluster.style.alignItems = 'center';
+      cluster.style.justifyContent = 'center';
+      cluster.style.fontSize = '14px';
+      cluster.style.fontWeight = 'bold';
+      cluster.style.color = 'white';
+      cluster.style.backgroundColor = isExternalDominant 
+        ? (hasTicketmaster ? '#1d4ed8' : '#059669')  // Blue for Ticketmaster, green for other external
+        : '#3b82f6';  // Regular blue for self-created events
+      cluster.style.border = '3px solid white';
+      cluster.style.boxShadow = '0 2px 10px rgba(0,0,0,0.3)';
+      cluster.style.transition = 'transform 0.2s ease';
+      cluster.textContent = totalCount.toString();
+
+      el.appendChild(cluster);
+
+      // Hover effects
+      el.addEventListener('mouseenter', () => {
+        cluster.style.transform = 'scale(1.2)';
+      });
+
+      el.addEventListener('mouseleave', () => {
+        cluster.style.transform = 'scale(1)';
+      });
+
+      // Click to zoom in to show individual events
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        
+        if (map.current) {
+          map.current.flyTo({
+            center: [centerLng, centerLat],
+            zoom: 14,
+            duration: 1500
+          });
+        }
+      });
+
+      const marker = new mapboxgl.Marker({
+        element: el,
+        anchor: 'center'
+      })
+        .setLngLat([centerLng, centerLat])
+        .addTo(map.current!);
+      
+      newClusterMarkers.push(marker);
+    });
+
+    setClusterMarkers(newClusterMarkers);
+  };
+
   const addCityClusters = () => {
     if (!map.current) return;
 
