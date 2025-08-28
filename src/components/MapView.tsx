@@ -108,6 +108,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
   const [selectedVenueAddress, setSelectedVenueAddress] = useState<string>('');
   const externalFetchReqIdRef = useRef(0);
   const lastExternalPinsKeyRef = useRef<string>('');
+  const externalVenueMarkersMapRef = useRef<Record<string, { marker: mapboxgl.Marker; el: HTMLDivElement; venue: ExternalEvent['venue']; events: ExternalEvent[] }>>({});
 
   // Fetch external events for current map bounds
   const fetchExternalEvents = async (bounds: mapboxgl.LngLatBounds) => {
@@ -902,129 +903,137 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
         Math.abs(e.venue.lng) <= 180
       );
 
+    const normalize = (s?: string) => (s || '').toLowerCase().trim().replace(/\s+/g, '-');
+
     const venueGroups = safeEvents.reduce((groups, event) => {
-      const key = `${event.venue.id || event.venue.name}-${event.venue.lat.toFixed(5)}-${event.venue.lng.toFixed(5)}`;
+      const v = event.venue;
+      const keyBase = v.id && v.id.trim().length > 0 ? v.id : `${normalize(v.name)}|${normalize(v.city)}`;
+      const key = keyBase; // keep fixed by venue identity; don't include coords to avoid new keys on slight shifts
       if (!groups[key]) {
         groups[key] = {
-          venue: event.venue,
-          events: []
+          key,
+          venue: v,
+          events: [] as ExternalEvent[],
         };
       }
       groups[key].events.push(event);
       return groups;
-    }, {} as Record<string, { venue: ExternalEvent['venue'], events: ExternalEvent[] }>);
+    }, {} as Record<string, { key: string; venue: ExternalEvent['venue']; events: ExternalEvent[] }>);
 
-    const newPinsKey = Object.entries(venueGroups)
-      .map(([key, group]) => `${key}#${group.events.length}`)
-      .sort()
-      .join('|');
-
-    // If nothing changed, keep existing markers (avoid flicker)
-    if (newPinsKey === lastExternalPinsKeyRef.current) {
-      console.info('External pins unchanged, skipping re-render. Venues:', Object.keys(venueGroups).length);
-      return;
-    }
-
-    // Clear existing external event markers only when content changed
-    externalEventMarkersRef.current.forEach(marker => {
-      try { marker.remove(); } catch {}
-    });
-    externalEventMarkersRef.current = [];
-
-    console.info('Rendering external pins. Venues:', Object.keys(venueGroups).length);
-
-  // Create markers for each venue
-  const newMarkers: mapboxgl.Marker[] = [];
-  
-  Object.values(venueGroups).forEach(({ venue, events: venueEvents }) => {
-    // Create marker element for external events with distinct styling for Ticketmaster
-    const el = document.createElement('div');
-    el.className = 'external-event-marker';
-    
-    // Different styling for Ticketmaster events
-    const isTicketmaster = venueEvents.some(e => e.source === 'ticketmaster');
-    const backgroundColor = isTicketmaster 
-      ? 'linear-gradient(135deg, #0066cc, #004499)' // Blue for Ticketmaster
-      : 'linear-gradient(135deg, #10b981, #059669)'; // Green for other sources
-    
-    el.style.cssText = `
-      width: 36px;
-      height: 36px;
-      background: ${backgroundColor};
-      border: 2px solid white;
-      border-radius: 50%;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-      font-weight: bold;
-      color: white;
-      box-shadow: 0 2px 8px ${isTicketmaster ? 'rgba(0, 102, 204, 0.3)' : 'rgba(16, 185, 129, 0.3)'};
-      transition: box-shadow 0.15s ease, background 0.15s ease;
-      position: relative;
-      z-index: 10;
-      transform-origin: center;
-    `;
-    
-    // Add event count
-    el.textContent = venueEvents.length.toString();
-    
-    // Add Ticketmaster logo indicator if it's a Ticketmaster venue
-    if (isTicketmaster) {
-      const logoIndicator = document.createElement('div');
-      logoIndicator.style.cssText = `
-        position: absolute;
-        top: -2px;
-        right: -2px;
-        width: 12px;
-        height: 12px;
-        background: white;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 8px;
-        color: #0066cc;
-        font-weight: bold;
-      `;
-      logoIndicator.textContent = 'TM';
-      el.appendChild(logoIndicator);
-    }
-    
-    // Add hover effects (no transform to avoid jumping during map movements)
-    el.addEventListener('mouseenter', () => {
-      el.style.boxShadow = isTicketmaster 
-        ? '0 4px 16px rgba(0, 102, 204, 0.5)'
-        : '0 4px 12px rgba(16, 185, 129, 0.4)';
-    });
-    
-    el.addEventListener('mouseleave', () => {
-      el.style.boxShadow = isTicketmaster 
-        ? '0 2px 8px rgba(0, 102, 204, 0.3)'
-        : '0 2px 8px rgba(16, 185, 129, 0.3)';
+    // Deduplicate events per venue by id
+    Object.values(venueGroups).forEach((g) => {
+      const seen = new Set<string>();
+      g.events = g.events.filter((ev) => {
+        if (seen.has(ev.id)) return false;
+        seen.add(ev.id);
+        return true;
+      });
     });
 
-    // Add click handler
-    el.addEventListener('click', () => {
-      setSelectedVenueEvents(venueEvents);
-      setSelectedVenueName(venue.name);
-      setSelectedVenueAddress(`${venue.address || ''}, ${venue.city || ''}`.replace(/^,\s*/, ''));
-      setShowExternalEventsPanel(true);
+    const incomingKeys = new Set(Object.keys(venueGroups));
+    const existingKeys = new Set(Object.keys(externalVenueMarkersMapRef.current));
+
+    // Remove markers for venues no longer present
+    existingKeys.forEach((key) => {
+      if (!incomingKeys.has(key)) {
+        try {
+          externalVenueMarkersMapRef.current[key].marker.remove();
+        } catch {}
+        delete externalVenueMarkersMapRef.current[key];
+      }
     });
 
-    // Create marker with fixed bottom anchor for stability
-    const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
-      .setLngLat([venue.lng, venue.lat])
-      .addTo(map.current!);
+    // Add or update markers for incoming venues
+    Object.entries(venueGroups).forEach(([key, group]) => {
+      const existing = externalVenueMarkersMapRef.current[key];
+      const count = group.events.length;
 
-    newMarkers.push(marker);
-  });
+      if (existing) {
+        // Update count label only; keep position fixed
+        existing.el.textContent = String(count);
+        existing.events = group.events;
+        // Do not update marker position to avoid jumping
+      } else {
+        // Create marker element
+        const el = document.createElement('div');
+        el.className = 'external-event-marker';
+        const isTicketmaster = group.events.some((e) => e.source === 'ticketmaster');
+        const backgroundColor = isTicketmaster
+          ? 'linear-gradient(135deg, #0066cc, #004499)'
+          : 'linear-gradient(135deg, #10b981, #059669)';
+        el.style.cssText = `
+          width: 36px;
+          height: 36px;
+          background: ${backgroundColor};
+          border: 2px solid white;
+          border-radius: 50%;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 12px;
+          font-weight: bold;
+          color: white;
+          box-shadow: 0 2px 8px ${isTicketmaster ? 'rgba(0, 102, 204, 0.3)' : 'rgba(16, 185, 129, 0.3)'};
+          transition: box-shadow 0.15s ease, background 0.15s ease;
+          position: relative;
+          z-index: 10;
+          transform-origin: center;
+        `;
+        el.textContent = String(count);
 
-  externalEventMarkersRef.current = newMarkers;
-  lastExternalPinsKeyRef.current = newPinsKey;
+        if (isTicketmaster) {
+          const logoIndicator = document.createElement('div');
+          logoIndicator.style.cssText = `
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            width: 12px;
+            height: 12px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 8px;
+            color: #0066cc;
+            font-weight: bold;
+          `;
+          logoIndicator.textContent = 'TM';
+          el.appendChild(logoIndicator);
+        }
+
+        el.addEventListener('mouseenter', () => {
+          el.style.boxShadow = isTicketmaster
+            ? '0 4px 16px rgba(0, 102, 204, 0.5)'
+            : '0 4px 12px rgba(16, 185, 129, 0.4)';
+        });
+        el.addEventListener('mouseleave', () => {
+          el.style.boxShadow = isTicketmaster
+            ? '0 2px 8px rgba(0, 102, 204, 0.3)'
+            : '0 2px 8px rgba(16, 185, 129, 0.3)';
+        });
+
+        el.addEventListener('click', () => {
+          setSelectedVenueEvents(group.events);
+          setSelectedVenueName(group.venue.name);
+          setSelectedVenueAddress(`${group.venue.address || ''}, ${group.venue.city || ''}`.replace(/^,\s*/, ''));
+          setShowExternalEventsPanel(true);
+        });
+
+        // Create marker with fixed bottom anchor for stability (and lock initial position)
+        const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
+          .setLngLat([group.venue.lng, group.venue.lat])
+          .addTo(map.current!);
+
+        externalVenueMarkersMapRef.current[key] = { marker, el, venue: group.venue, events: group.events };
+      }
+    });
+
+    // Update cache key
+    const newPinsKey = Array.from(incomingKeys).sort().join('|') + `:${safeEvents.length}`;
+    lastExternalPinsKeyRef.current = newPinsKey;
   };
-
   const addCityClusters = () => {
     if (!map.current) return;
 
