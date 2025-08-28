@@ -829,72 +829,108 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     externalEventMarkers.forEach(marker => marker.remove());
     setExternalEventMarkers([]);
 
-    // Group events by venue
-    const venueGroups = events.reduce((groups, event) => {
-      const key = `${event.venue.name}-${event.venue.lat}-${event.venue.lng}`;
-      if (!groups[key]) {
-        groups[key] = {
-          venue: event.venue,
-          events: []
-        };
-      }
-      groups[key].events.push(event);
-      return groups;
-    }, {} as Record<string, { venue: ExternalEvent['venue'], events: ExternalEvent[] }>);
+  // Group events by venue
+  const venueGroups = events.reduce((groups, event) => {
+    const key = `${event.venue.name}-${event.venue.lat}-${event.venue.lng}`;
+    if (!groups[key]) {
+      groups[key] = {
+        venue: event.venue,
+        events: []
+      };
+    }
+    groups[key].events.push(event);
+    return groups;
+  }, {} as Record<string, { venue: ExternalEvent['venue'], events: ExternalEvent[] }>);
 
-    // Create markers for each venue
-    const newMarkers: mapboxgl.Marker[] = [];
+  // Create markers for each venue
+  const newMarkers: mapboxgl.Marker[] = [];
+  
+  Object.values(venueGroups).forEach(({ venue, events: venueEvents }) => {
+    // Create marker element for external events with distinct styling for Ticketmaster
+    const el = document.createElement('div');
+    el.className = 'external-event-marker';
     
-    Object.values(venueGroups).forEach(({ venue, events: venueEvents }) => {
-      // Create marker element for external events
-      const el = document.createElement('div');
-      el.className = 'external-event-marker';
-      el.style.cssText = `
-        width: 32px;
-        height: 32px;
-        background: linear-gradient(135deg, #10b981, #059669);
-        border: 2px solid white;
+    // Different styling for Ticketmaster events
+    const isTicketmaster = venueEvents.some(e => e.source === 'ticketmaster');
+    const backgroundColor = isTicketmaster 
+      ? 'linear-gradient(135deg, #0066cc, #004499)' // Blue for Ticketmaster
+      : 'linear-gradient(135deg, #10b981, #059669)'; // Green for other sources
+    
+    el.style.cssText = `
+      width: 36px;
+      height: 36px;
+      background: ${backgroundColor};
+      border: 2px solid white;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: bold;
+      color: white;
+      box-shadow: 0 2px 8px ${isTicketmaster ? 'rgba(0, 102, 204, 0.3)' : 'rgba(16, 185, 129, 0.3)'};
+      transition: all 0.2s ease;
+      position: relative;
+    `;
+    
+    // Add event count
+    el.textContent = venueEvents.length.toString();
+    
+    // Add Ticketmaster logo indicator if it's a Ticketmaster venue
+    if (isTicketmaster) {
+      const logoIndicator = document.createElement('div');
+      logoIndicator.style.cssText = `
+        position: absolute;
+        top: -2px;
+        right: -2px;
+        width: 12px;
+        height: 12px;
+        background: white;
         border-radius: 50%;
-        cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 12px;
+        font-size: 8px;
+        color: #0066cc;
         font-weight: bold;
-        color: white;
-        box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
-        transition: all 0.2s ease;
       `;
-      el.textContent = venueEvents.length.toString();
-      
-      // Add hover effects
-      el.addEventListener('mouseenter', () => {
-        el.style.transform = 'scale(1.1)';
-        el.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.4)';
-      });
-      
-      el.addEventListener('mouseleave', () => {
-        el.style.transform = 'scale(1)';
-        el.style.boxShadow = '0 2px 8px rgba(16, 185, 129, 0.3)';
-      });
-
-      // Add click handler
-      el.addEventListener('click', () => {
-        setSelectedVenueEvents(venueEvents);
-        setSelectedVenueName(venue.name);
-        setSelectedVenueAddress(venue.address || '');
-        setShowExternalEventsPanel(true);
-      });
-
-      // Create marker
-      const marker = new mapboxgl.Marker(el)
-        .setLngLat([venue.lng, venue.lat])
-        .addTo(map.current!);
-
-      newMarkers.push(marker);
+      logoIndicator.textContent = 'TM';
+      el.appendChild(logoIndicator);
+    }
+    
+    // Add hover effects
+    el.addEventListener('mouseenter', () => {
+      el.style.transform = 'scale(1.15)';
+      el.style.boxShadow = isTicketmaster 
+        ? '0 4px 16px rgba(0, 102, 204, 0.5)' 
+        : '0 4px 12px rgba(16, 185, 129, 0.4)';
+    });
+    
+    el.addEventListener('mouseleave', () => {
+      el.style.transform = 'scale(1)';
+      el.style.boxShadow = isTicketmaster 
+        ? '0 2px 8px rgba(0, 102, 204, 0.3)' 
+        : '0 2px 8px rgba(16, 185, 129, 0.3)';
     });
 
-    setExternalEventMarkers(newMarkers);
+    // Add click handler
+    el.addEventListener('click', () => {
+      setSelectedVenueEvents(venueEvents);
+      setSelectedVenueName(venue.name);
+      setSelectedVenueAddress(`${venue.address || ''}, ${venue.city || ''}`.replace(/^,\s*/, ''));
+      setShowExternalEventsPanel(true);
+    });
+
+    // Create marker
+    const marker = new mapboxgl.Marker(el)
+      .setLngLat([venue.lng, venue.lat])
+      .addTo(map.current!);
+
+    newMarkers.push(marker);
+  });
+
+  setExternalEventMarkers(newMarkers);
   };
 
   const addCityClusters = () => {
