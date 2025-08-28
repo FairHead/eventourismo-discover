@@ -110,6 +110,8 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
   const lastExternalPinsKeyRef = useRef<string>('');
   const externalVenueMarkersMapRef = useRef<Record<string, { marker: mapboxgl.Marker; el: HTMLDivElement; venue: ExternalEvent['venue']; events: ExternalEvent[] }>>({});
   const nationwideLoadedRef = useRef<boolean>(false);
+  const externalVenueDataRef = useRef<Record<string, { venue: ExternalEvent['venue']; events: ExternalEvent[] }>>({});
+  const externalVenueLayerReadyRef = useRef<boolean>(false);
 
   // Fetch external events for current map bounds
   const fetchExternalEvents = async (bounds: mapboxgl.LngLatBounds) => {
