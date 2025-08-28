@@ -107,6 +107,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
   const [selectedVenueName, setSelectedVenueName] = useState<string>('');
   const [selectedVenueAddress, setSelectedVenueAddress] = useState<string>('');
   const externalFetchReqIdRef = useRef(0);
+  const lastExternalPinsKeyRef = useRef<string>('');
 
   // Fetch external events for current map bounds
   const fetchExternalEvents = async (bounds: mapboxgl.LngLatBounds) => {
@@ -873,11 +874,6 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       }
     });
     setClusterMarkers([]);
-    // Also clear external event markers safely
-    externalEventMarkersRef.current.forEach(marker => {
-      try { marker.remove(); } catch {}
-    });
-    externalEventMarkersRef.current = [];
   };
 
   // Update external event pins on map
@@ -916,6 +912,18 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     return groups;
   }, {} as Record<string, { venue: ExternalEvent['venue'], events: ExternalEvent[] }>);
 
+  const newPinsKey = Object.entries(venueGroups)
+    .map(([key, group]) => `${key}#${group.events.length}`)
+    .sort()
+    .join('|');
+
+  if (newPinsKey === lastExternalPinsKeyRef.current) {
+    console.info('External pins unchanged, skipping re-render. Venues:', Object.keys(venueGroups).length);
+    return;
+  }
+
+  console.info('Rendering external pins. Venues:', Object.keys(venueGroups).length);
+
   // Create markers for each venue
   const newMarkers: mapboxgl.Marker[] = [];
   
@@ -944,9 +952,10 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       font-weight: bold;
       color: white;
       box-shadow: 0 2px 8px ${isTicketmaster ? 'rgba(0, 102, 204, 0.3)' : 'rgba(16, 185, 129, 0.3)'};
-      transition: all 0.2s ease;
+      transition: box-shadow 0.15s ease, background 0.15s ease;
       position: relative;
       z-index: 10;
+      transform-origin: center;
     `;
     
     // Add event count
@@ -974,18 +983,16 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       el.appendChild(logoIndicator);
     }
     
-    // Add hover effects
+    // Add hover effects (no transform to avoid jumping during map movements)
     el.addEventListener('mouseenter', () => {
-      el.style.transform = 'scale(1.15)';
       el.style.boxShadow = isTicketmaster 
-        ? '0 4px 16px rgba(0, 102, 204, 0.5)' 
+        ? '0 4px 16px rgba(0, 102, 204, 0.5)'
         : '0 4px 12px rgba(16, 185, 129, 0.4)';
     });
     
     el.addEventListener('mouseleave', () => {
-      el.style.transform = 'scale(1)';
       el.style.boxShadow = isTicketmaster 
-        ? '0 2px 8px rgba(0, 102, 204, 0.3)' 
+        ? '0 2px 8px rgba(0, 102, 204, 0.3)'
         : '0 2px 8px rgba(16, 185, 129, 0.3)';
     });
 
@@ -997,8 +1004,8 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       setShowExternalEventsPanel(true);
     });
 
-    // Create marker
-    const marker = new mapboxgl.Marker(el)
+    // Create marker with fixed bottom anchor for stability
+    const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
       .setLngLat([venue.lng, venue.lat])
       .addTo(map.current!);
 
@@ -1006,6 +1013,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
   });
 
   externalEventMarkersRef.current = newMarkers;
+  lastExternalPinsKeyRef.current = newPinsKey;
   };
 
   const addCityClusters = () => {
