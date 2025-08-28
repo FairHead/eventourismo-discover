@@ -104,8 +104,9 @@ serve(async (req) => {
     eventsUrl.searchParams.set('apikey', ticketmasterApiKey);
     eventsUrl.searchParams.set('countryCode', 'DE');
     eventsUrl.searchParams.set('locale', 'de-de');
-    eventsUrl.searchParams.set('size', '50');
+    eventsUrl.searchParams.set('size', '200');
     eventsUrl.searchParams.set('sort', 'date,asc');
+    eventsUrl.searchParams.set('classificationName', 'Music');
 
     if (dateFrom) eventsUrl.searchParams.set('startDateTime', new Date(dateFrom).toISOString());
     if (dateTo) eventsUrl.searchParams.set('endDateTime', new Date(dateTo).toISOString());
@@ -138,8 +139,21 @@ serve(async (req) => {
     const response = await fetch(eventsUrl.toString());
     
     if (!response.ok) {
-      console.error('Ticketmaster API error:', response.status, response.statusText);
-      throw new Error(`Ticketmaster API failed: ${response.statusText}`);
+      const errorText = await response.text();
+      console.error('Ticketmaster API error:', response.status, response.statusText, errorText);
+      // Return empty events but include warning so the client doesn't throw
+      return new Response(
+        JSON.stringify({ 
+          events: [],
+          warning: {
+            source: 'ticketmaster',
+            status: response.status,
+            statusText: response.statusText,
+            body: errorText
+          }
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const data = await response.json();
@@ -243,13 +257,17 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in fetch-external-events function:', error);
+    // Return empty events but include warning so client UI can continue
     return new Response(
       JSON.stringify({ 
-        error: 'Internal server error',
-        details: error.message 
+        events: [],
+        warning: {
+          source: 'edge-function',
+          message: 'Internal server error',
+          details: (error as Error).message || String(error)
+        }
       }),
       { 
-        status: 500, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       }
     );
