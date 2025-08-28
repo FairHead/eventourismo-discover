@@ -10,6 +10,7 @@ import ProfilePictureUpload from '@/components/ProfilePictureUpload';
 import RoleSpecificSettings from '@/components/RoleSpecificSettings';
 import ArtistProfileModal from '@/components/ArtistProfileModal';
 import FavoritesDashboard from '@/components/FavoritesDashboard';
+import EventsCalendar from '@/components/EventsCalendar';
 import { useNavigate } from 'react-router-dom';
 import { 
   User, 
@@ -269,6 +270,9 @@ const Profile: React.FC = () => {
 
       {/* Favorites Dashboard */}
       <FavoritesDashboard />
+
+      {/* Events Calendar */}
+      <EventsCalendar />
 
       {/* Menu Items */}
       <Card className="border-border">
