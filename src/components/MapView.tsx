@@ -57,6 +57,9 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
   const [clusterMarkers, setClusterMarkers] = useState<mapboxgl.Marker[]>([]);
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const geoWatchIdRef = useRef<number | null>(null);
+  const hasCenteredRef = useRef<boolean>(false);
+  const lastAccuracyRef = useRef<number | null>(null);
+  const lastCoordsRef = useRef<[number, number] | null>(null);
   const [userHeading, setUserHeading] = useState<number>(0);
   const [isNavigating, setIsNavigating] = useState(false);
   const [navigationDestination, setNavigationDestination] = useState<{
@@ -128,6 +131,10 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
           if (map.current) {
             const zoom = map.current.getZoom();
             setCurrentZoom(zoom);
+            // Resize accuracy ring on zoom
+            if (lastAccuracyRef.current && lastCoordsRef.current) {
+              updateAccuracyRing(lastAccuracyRef.current, lastCoordsRef.current);
+            }
           }
         });
       }
@@ -155,12 +162,13 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
         const hasPendingEventFocus = !!sessionStorage.getItem('focusEventId') && !!sessionStorage.getItem('focusEventData');
         const suppressAutoCenter = sessionStorage.getItem('suppressAutoCenter') === '1';
         
-        // Only zoom to user location if we didn't come from Event Search or suppress flag
         if (!hasPendingEventFocus && !suppressAutoCenter) {
           console.log('Direct map access - zooming to user location:', coords);
           map.current?.flyTo({ center: coords, zoom: 14, duration: 2000 });
+          hasCenteredRef.current = true;
         } else {
           console.log('Event search navigation or suppress flag detected - skipping user location zoom');
+          hasCenteredRef.current = false;
         }
         
         // Always create user location marker
@@ -193,16 +201,28 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       geoWatchIdRef.current = navigator.geolocation.watchPosition(
         (position) => {
           const coords: [number, number] = [position.coords.longitude, position.coords.latitude];
-          console.log('Location update:', coords);
+          console.log('Location update:', coords, 'accuracy(m):', position.coords.accuracy);
           setUserLocation(coords);
+          lastAccuracyRef.current = position.coords.accuracy ?? null;
+          lastCoordsRef.current = coords;
           
-          // Always ensure marker exists and update position
+          // Ensure marker exists and update position
           if (userMarkerRef.current && userMarkerRef.current.getElement()?.isConnected) {
             userMarkerRef.current.setLngLat(coords);
-            console.log('Updated existing marker position');
           } else {
             console.log('Marker missing or detached, recreating...');
             createUserLocationMarker(coords);
+          }
+
+          // Update accuracy ring size according to zoom and reported accuracy
+          if (lastAccuracyRef.current) {
+            updateAccuracyRing(lastAccuracyRef.current, coords);
+          }
+
+          // Center once on first accurate fix if not already centered
+          if (!hasCenteredRef.current && map.current) {
+            map.current.flyTo({ center: coords, zoom: Math.max(map.current.getZoom(), 14), duration: 1200 });
+            hasCenteredRef.current = true;
           }
         },
         (error) => {
@@ -313,6 +333,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
 
       // Accuracy circle (outer ring)
       const accuracyRing = document.createElement('div');
+      accuracyRing.className = 'user-accuracy-ring';
       accuracyRing.style.width = '40px';
       accuracyRing.style.height = '40px';
       accuracyRing.style.border = '2px solid rgba(0, 122, 255, 0.3)';
@@ -360,7 +381,26 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       console.error('Failed to create user location marker:', err);
     }
   };
-  // Get nearest road address using reverse geocoding
+
+  // Convert meters to pixels at given latitude and zoom
+  const metersToPixelsAtLat = (meters: number, latitude: number, zoom: number) => {
+    const metersPerPixel = 156543.03392 * Math.cos(latitude * Math.PI / 180) / Math.pow(2, zoom);
+    return meters / metersPerPixel;
+  };
+
+  // Update the accuracy ring size according to map zoom and reported accuracy in meters
+  const updateAccuracyRing = (accuracyMeters: number, coords: [number, number]) => {
+    if (!map.current || !userMarkerRef.current) return;
+    const zoom = map.current.getZoom();
+    const px = metersToPixelsAtLat(Math.max(accuracyMeters, 5), coords[1], zoom);
+    const size = Math.min(Math.max(px * 2, 20), 300); // keep sensible bounds
+    const el = userMarkerRef.current.getElement();
+    const ring = el.querySelector('.user-accuracy-ring') as HTMLElement | null;
+    if (ring) {
+      ring.style.width = `${size}px`;
+      ring.style.height = `${size}px`;
+    }
+  };
   const getNearestAddress = async (coords: [number, number]): Promise<[number, number]> => {
     try {
       const response = await fetch(
@@ -379,7 +419,6 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     }
     return coords; // Fallback to original coordinates
   };
-
   // Route calculation and display
   const calculateRoute = async (
     destination: [number, number],
