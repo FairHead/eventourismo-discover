@@ -1,1 +1,10 @@
 project_id = "bzadclztipjxmhrtckwf"
+
+[functions.get-mapbox-token]
+verify_jwt = false
+
+[functions.reverse-geocode]
+verify_jwt = false
+
+[functions.fetch-external-events]
+verify_jwt = false
