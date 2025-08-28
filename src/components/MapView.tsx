@@ -922,6 +922,14 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
   const updateExternalEventPins = (events: ExternalEvent[]) => {
     if (!map.current) return;
 
+    // Remove legacy HTML markers once (switch to GeoJSON layer for stability)
+    if (Object.keys(externalVenueMarkersMapRef.current).length > 0) {
+      Object.values(externalVenueMarkersMapRef.current).forEach(({ marker }) => {
+        try { marker.remove(); } catch {}
+      });
+      externalVenueMarkersMapRef.current = {};
+    }
+
     // Prepare and group events by venue (with safe coordinates and stable keys)
     const safeEvents = events
       .map((e) => {
@@ -943,7 +951,6 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       const nameKey = normalize(v.name) || 'unknown';
       const cityKey = normalize(v.city) || 'unknown';
       let key = (v.id && v.id.trim().length > 0) ? v.id : `${nameKey}|${cityKey}`;
-      // If still too generic, include rounded coords for uniqueness (but we won't move existing markers later)
       if (key === 'unknown|unknown') {
         key = `${key}|${v.lat.toFixed(5)}_${v.lng.toFixed(5)}`;
       }
@@ -968,110 +975,118 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       });
     });
 
-    const incomingKeys = new Set(Object.keys(venueGroups));
-    const existingKeys = new Set(Object.keys(externalVenueMarkersMapRef.current));
+    // Cache for click handling
+    externalVenueDataRef.current = Object.fromEntries(
+      Object.values(venueGroups).map((g) => [g.key, { venue: g.venue, events: g.events }])
+    );
 
-    // Keep existing markers; do not remove venues not present in this batch
-    // This ensures fixed, persistent venue pins that don't disappear on pan/zoom.
-    // We will only add new venues and update counts for existing ones below.
+    // Build GeoJSON FeatureCollection
+    const features = Object.values(venueGroups).map((g) => ({
+      type: 'Feature' as const,
+      properties: {
+        key: g.key,
+        name: g.venue.name,
+        city: g.venue.city || '',
+        address: g.venue.address || '',
+        count: g.events.length,
+        sourceTag: g.events.some((e) => e.source === 'ticketmaster') ? 'ticketmaster' : 'other',
+      },
+      geometry: {
+        type: 'Point' as const,
+        coordinates: [g.venue.lng, g.venue.lat],
+      },
+    }));
 
-    // Add or update markers for incoming venues
-    Object.entries(venueGroups).forEach(([key, group]) => {
-      const existing = externalVenueMarkersMapRef.current[key];
+    const fc = { type: 'FeatureCollection' as const, features };
 
-      if (existing) {
-        // Merge and deduplicate events; keep position fixed
-        const seen = new Set(existing.events.map((e) => e.id));
-        const merged = [...existing.events];
-        for (const ev of group.events) {
-          if (!seen.has(ev.id)) {
-            merged.push(ev);
-            seen.add(ev.id);
+    // Add or update source/layers
+    const sourceId = 'external-venues';
+    const circleLayerId = 'external-venues-circles';
+    const labelLayerId = 'external-venues-labels';
+
+    const existingSource = map.current.getSource(sourceId) as mapboxgl.GeoJSONSource | undefined;
+    if (existingSource) {
+      existingSource.setData(fc as any);
+    } else {
+      map.current.addSource(sourceId, { type: 'geojson', data: fc as any });
+
+      // Circles for pins
+      map.current.addLayer({
+        id: circleLayerId,
+        type: 'circle',
+        source: sourceId,
+        paint: {
+          'circle-radius': [
+            'interpolate', ['linear'], ['get', 'count'],
+            1, 10,
+            5, 13,
+            10, 16,
+            20, 20
+          ],
+          'circle-color': [
+            'match', ['get', 'sourceTag'],
+            'ticketmaster', '#1d4ed8',
+            /* other */ '#059669'
+          ],
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 2,
+          'circle-opacity': 0.95,
+        },
+      });
+
+      // Labels with counts
+      map.current.addLayer({
+        id: labelLayerId,
+        type: 'symbol',
+        source: sourceId,
+        layout: {
+          'text-field': ['to-string', ['get', 'count']],
+          'text-size': 12,
+          'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+          'text-allow-overlap': true,
+        },
+        paint: {
+          'text-color': '#ffffff',
+          'text-halo-color': '#000000',
+          'text-halo-width': 0.8,
+        },
+      });
+
+      // Interactions (once)
+      if (!externalVenueLayerReadyRef.current) {
+        externalVenueLayerReadyRef.current = true;
+
+        const openPanel = (f: any) => {
+          const props = f.properties || {};
+          const key = props.key as string;
+          const data = externalVenueDataRef.current[key];
+          if (data) {
+            setSelectedVenueEvents(data.events);
+            setSelectedVenueName(data.venue.name);
+            setSelectedVenueAddress(`${data.venue.address || ''}, ${data.venue.city || ''}`.replace(/^,\s*/, ''));
+            setShowExternalEventsPanel(true);
           }
-        }
-        existing.events = merged;
-        existing.el.textContent = String(merged.length);
-        // Do not update marker position to avoid jumping
-      } else {
-        // Create marker element
-        const el = document.createElement('div');
-        el.className = 'external-event-marker';
-        const isTicketmaster = group.events.some((e) => e.source === 'ticketmaster');
-        const backgroundColor = isTicketmaster
-          ? 'linear-gradient(135deg, #0066cc, #004499)'
-          : 'linear-gradient(135deg, #10b981, #059669)';
-        el.style.cssText = `
-          width: 36px;
-          height: 36px;
-          background: ${backgroundColor};
-          border: 2px solid white;
-          border-radius: 50%;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 12px;
-          font-weight: bold;
-          color: white;
-          box-shadow: 0 2px 8px ${isTicketmaster ? 'rgba(0, 102, 204, 0.3)' : 'rgba(16, 185, 129, 0.3)'};
-          transition: box-shadow 0.15s ease, background 0.15s ease;
-          position: relative;
-          z-index: 10;
-          transform-origin: center;
-          pointer-events: auto;
-        `;
-        el.textContent = String(group.events.length);
+        };
 
-        if (isTicketmaster) {
-          const logoIndicator = document.createElement('div');
-          logoIndicator.style.cssText = `
-            position: absolute;
-            top: -2px;
-            right: -2px;
-            width: 12px;
-            height: 12px;
-            background: white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 8px;
-            color: #0066cc;
-            font-weight: bold;
-          `;
-          logoIndicator.textContent = 'TM';
-          el.appendChild(logoIndicator);
-        }
-
-        el.addEventListener('mouseenter', () => {
-          el.style.boxShadow = isTicketmaster
-            ? '0 4px 16px rgba(0, 102, 204, 0.5)'
-            : '0 4px 12px rgba(16, 185, 129, 0.4)';
+        map.current.on('mouseenter', circleLayerId, () => {
+          map.current && (map.current.getCanvas().style.cursor = 'pointer');
         });
-        el.addEventListener('mouseleave', () => {
-          el.style.boxShadow = isTicketmaster
-            ? '0 2px 8px rgba(0, 102, 204, 0.3)'
-            : '0 2px 8px rgba(16, 185, 129, 0.3)';
+        map.current.on('mouseleave', circleLayerId, () => {
+          map.current && (map.current.getCanvas().style.cursor = '');
         });
-
-        el.addEventListener('click', () => {
-          setSelectedVenueEvents(group.events);
-          setSelectedVenueName(group.venue.name);
-          setSelectedVenueAddress(`${group.venue.address || ''}, ${group.venue.city || ''}`.replace(/^,\s*/, ''));
-          setShowExternalEventsPanel(true);
+        map.current.on('click', circleLayerId, (e) => {
+          if (!e.features || e.features.length === 0) return;
+          openPanel(e.features[0]);
         });
-
-        // Create marker with fixed bottom anchor for stability (and lock initial position)
-        const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
-          .setLngLat([group.venue.lng, group.venue.lat])
-          .addTo(map.current!);
-
-        externalVenueMarkersMapRef.current[key] = { marker, el, venue: group.venue, events: group.events };
+        map.current.on('click', labelLayerId, (e) => {
+          if (!e.features || e.features.length === 0) return;
+          openPanel(e.features[0]);
+        });
       }
-    });
+    }
 
-    // Update cache key
-    const newPinsKey = Array.from(incomingKeys).sort().join('|') + `:${safeEvents.length}`;
+    // Update cache key (debug/consistency)
+    const newPinsKey = Object.keys(venueGroups).sort().join('|') + `:${safeEvents.length}`;
     lastExternalPinsKeyRef.current = newPinsKey;
   };
   const addCityClusters = () => {
