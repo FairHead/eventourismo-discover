@@ -295,6 +295,22 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
             }
           }
         });
+
+        // Auto-fetch external events when map loads
+        map.current.on('idle', () => {
+          if (map.current) {
+            const bounds = map.current.getBounds();
+            fetchExternalEvents(bounds);
+          }
+        });
+
+        // Also fetch when map moves
+        map.current.on('moveend', () => {
+          if (map.current) {
+            const bounds = map.current.getBounds();
+            fetchExternalEvents(bounds);
+          }
+        });
       }
     });
 
