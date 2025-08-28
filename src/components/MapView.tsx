@@ -109,6 +109,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
   const externalFetchReqIdRef = useRef(0);
   const lastExternalPinsKeyRef = useRef<string>('');
   const externalVenueMarkersMapRef = useRef<Record<string, { marker: mapboxgl.Marker; el: HTMLDivElement; venue: ExternalEvent['venue']; events: ExternalEvent[] }>>({});
+  const nationwideLoadedRef = useRef<boolean>(false);
 
   // Fetch external events for current map bounds
   const fetchExternalEvents = async (bounds: mapboxgl.LngLatBounds) => {
@@ -217,6 +218,34 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     }
   };
 
+  // Nationwide fetch (once) to preload Germany-wide venues
+  const fetchExternalEventsNationwideOnce = async () => {
+    if (!map.current || nationwideLoadedRef.current) return;
+    nationwideLoadedRef.current = true;
+    try {
+      const deBBox = { south: 47.270111, west: 5.866342, north: 55.058347, east: 15.041896 };
+      const resp = await supabase.functions.invoke('fetch-external-events', {
+        body: {
+          bbox: deBBox,
+          date_from: new Date().toISOString(),
+          date_to: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+      });
+      if (!resp.error && resp.data?.events) {
+        const nationwide = resp.data.events as ExternalEvent[];
+        setExternalEvents((prev) => {
+          const merged = [...prev, ...nationwide];
+          updateExternalEventPins(merged);
+          return merged;
+        });
+        console.info('Preloaded nationwide external events:', nationwide.length);
+      } else if (resp.error) {
+        console.warn('Nationwide external events fetch error:', resp.error);
+      }
+    } catch (e) {
+      console.warn('Nationwide external events fetch failed:', e);
+    }
+  };
   // Toggle favorite status
   const toggleFavorite = async (eventId: string) => {
     if (!user) {
@@ -352,6 +381,8 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
         if (map.current) {
           const initialBounds = map.current.getBounds();
           fetchExternalEvents(initialBounds);
+          // Also preload Germany-wide venues once for stable markers across the country
+          fetchExternalEventsNationwideOnce();
         }
 
         // Also fetch when map moves
