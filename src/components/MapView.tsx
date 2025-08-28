@@ -964,25 +964,26 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     const incomingKeys = new Set(Object.keys(venueGroups));
     const existingKeys = new Set(Object.keys(externalVenueMarkersMapRef.current));
 
-    // Remove markers for venues no longer present
-    existingKeys.forEach((key) => {
-      if (!incomingKeys.has(key)) {
-        try {
-          externalVenueMarkersMapRef.current[key].marker.remove();
-        } catch {}
-        delete externalVenueMarkersMapRef.current[key];
-      }
-    });
+    // Keep existing markers; do not remove venues not present in this batch
+    // This ensures fixed, persistent venue pins that don't disappear on pan/zoom.
+    // We will only add new venues and update counts for existing ones below.
 
     // Add or update markers for incoming venues
     Object.entries(venueGroups).forEach(([key, group]) => {
       const existing = externalVenueMarkersMapRef.current[key];
-      const count = group.events.length;
 
       if (existing) {
-        // Update count label only; keep position fixed
-        existing.el.textContent = String(count);
-        existing.events = group.events;
+        // Merge and deduplicate events; keep position fixed
+        const seen = new Set(existing.events.map((e) => e.id));
+        const merged = [...existing.events];
+        for (const ev of group.events) {
+          if (!seen.has(ev.id)) {
+            merged.push(ev);
+            seen.add(ev.id);
+          }
+        }
+        existing.events = merged;
+        existing.el.textContent = String(merged.length);
         // Do not update marker position to avoid jumping
       } else {
         // Create marker element
@@ -1011,7 +1012,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
           z-index: 10;
           transform-origin: center;
         `;
-        el.textContent = String(count);
+        el.textContent = String(group.events.length);
 
         if (isTicketmaster) {
           const logoIndicator = document.createElement('div');
