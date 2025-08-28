@@ -692,7 +692,7 @@ export type Database = {
       favorite_target_type: "event" | "venue" | "artist"
       rating_target_type: "event" | "venue" | "artist"
       report_target_type: "event" | "venue" | "artist" | "user"
-      target_type: "event" | "venue" | "comment"
+      target_type: "event" | "venue" | "comment" | "external_event"
       user_role: "user" | "artist" | "organizer" | "venue_admin" | "admin"
     }
     CompositeTypes: {
@@ -826,7 +826,7 @@ export const Constants = {
       favorite_target_type: ["event", "venue", "artist"],
       rating_target_type: ["event", "venue", "artist"],
       report_target_type: ["event", "venue", "artist", "user"],
-      target_type: ["event", "venue", "comment"],
+      target_type: ["event", "venue", "comment", "external_event"],
       user_role: ["user", "artist", "organizer", "venue_admin", "admin"],
     },
   },
