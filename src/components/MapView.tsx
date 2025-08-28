@@ -16,6 +16,8 @@ interface MapViewProps {
   onMapReady?: (mapInstance: mapboxgl.Map) => void;
   selectedEventId?: string | null;
   onUserLocationChange?: (coords: [number, number]) => void;
+  onFavoritesChange?: (favorites: Set<string>) => void;
+  onToggleFavorite?: (eventId: string) => void;
 }
 
 interface EventData {
@@ -43,7 +45,7 @@ interface EventData {
   };
 }
 
-const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = false, onMapReady, selectedEventId, onUserLocationChange }) => {
+const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = false, onMapReady, selectedEventId, onUserLocationChange, onFavoritesChange, onToggleFavorite }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
@@ -91,7 +93,13 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
 
       if (error) throw error;
 
-      setFavorites(new Set(data?.map(fav => fav.target_id) || []));
+      const newFavorites = new Set(data?.map(fav => fav.target_id) || []);
+      setFavorites(newFavorites);
+      
+      // Notify parent component about favorites change
+      if (onFavoritesChange) {
+        onFavoritesChange(newFavorites);
+      }
     } catch (error) {
       console.error('Error fetching favorites:', error);
     }
@@ -117,11 +125,15 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
 
         if (error) throw error;
 
-        setFavorites(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(eventId);
-          return newSet;
-        });
+        const newFavorites = new Set(favorites);
+        newFavorites.delete(eventId);
+        setFavorites(newFavorites);
+        
+        // Notify parent component
+        if (onFavoritesChange) {
+          onFavoritesChange(newFavorites);
+        }
+        
         toast.success("Event aus Favoriten entfernt");
       } else {
         const { error } = await supabase
@@ -134,8 +146,20 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
 
         if (error) throw error;
 
-        setFavorites(prev => new Set([...prev, eventId]));
+        const newFavorites = new Set([...favorites, eventId]);
+        setFavorites(newFavorites);
+        
+        // Notify parent component
+        if (onFavoritesChange) {
+          onFavoritesChange(newFavorites);
+        }
+        
         toast.success("Event zu Favoriten hinzugefügt");
+      }
+      
+      // Notify parent about the toggle action
+      if (onToggleFavorite) {
+        onToggleFavorite(eventId);
       }
     } catch (error) {
       console.error('Error toggling favorite:', error);

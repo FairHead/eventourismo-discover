@@ -24,6 +24,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface EventData {
   id: string;
@@ -53,9 +55,10 @@ interface InfoPanelProps {
   onDelete?: (eventId: string) => void;
   onCalculateRoute?: (destination: [number, number], mode: 'walking' | 'cycling' | 'driving') => Promise<any>;
   userLocation?: [number, number] | null;
+  onFavoriteToggle?: (eventId: string, isFavorite: boolean) => void;
 }
 
-const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData, onEdit, onDelete, onCalculateRoute, userLocation }) => {
+const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData, onEdit, onDelete, onCalculateRoute, userLocation, onFavoriteToggle }) => {
   const [routeInfo, setRouteInfo] = useState<{
     duration: number;
     distance: number;
@@ -169,6 +172,50 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData, onEdi
 
   const { user } = useAuth();
   const isEventCreator = user && eventData.organizerId === user.id;
+
+  const toggleFavorite = async () => {
+    if (!user || !eventData) {
+      toast.error("Bitte melden Sie sich an, um Favoriten zu verwalten");
+      return;
+    }
+
+    try {
+      const isFavorite = eventData.isFavorite;
+      
+      if (isFavorite) {
+        const { error } = await supabase
+          .from('favorites')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('target_id', eventData.id)
+          .eq('target_type', 'event');
+
+        if (error) throw error;
+
+        toast.success("Event aus Favoriten entfernt");
+      } else {
+        const { error } = await supabase
+          .from('favorites')
+          .insert({
+            user_id: user.id,
+            target_id: eventData.id,
+            target_type: 'event'
+          });
+
+        if (error) throw error;
+
+        toast.success("Event zu Favoriten hinzugefügt");
+      }
+
+      // Update the favorite state locally and notify parent
+      if (onFavoriteToggle) {
+        onFavoriteToggle(eventData.id, !isFavorite);
+      }
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+      toast.error("Fehler beim Verwalten der Favoriten");
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     const variants = {
@@ -449,6 +496,7 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, eventData, onEdi
             <Button 
               variant={eventData.isFavorite ? "default" : "outline"}
               className="justify-start gap-2 relative z-0"
+              onClick={toggleFavorite}
             >
               <Heart className={cn("w-4 h-4", eventData.isFavorite && "fill-current")} />
               Merken

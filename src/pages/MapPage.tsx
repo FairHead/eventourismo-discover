@@ -52,6 +52,7 @@ const MapPage: React.FC = () => {
 const [currentMapPosition, setCurrentMapPosition] = useState<{center: [number, number], zoom: number} | null>(null);
 const [mapInstance, setMapInstance] = useState<mapboxgl.Map | null>(null);
 const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+const [favorites, setFavorites] = useState<Set<string>>(new Set());
 const { user } = useAuth();
 
   const fetchEvents = async () => {
@@ -206,6 +207,22 @@ const { user } = useAuth();
     setShowEditModal(false);
     setEditEventId(null);
     // Keep the event panel open by keeping selectedEventId - the updated data will load automatically
+  };
+
+  const handleFavoritesChange = (newFavorites: Set<string>) => {
+    setFavorites(newFavorites);
+  };
+
+  const handleFavoriteToggle = (eventId: string, isFavorite: boolean) => {
+    setFavorites(prev => {
+      const newSet = new Set(prev);
+      if (isFavorite) {
+        newSet.add(eventId);
+      } else {
+        newSet.delete(eventId);
+      }
+      return newSet;
+    });
   };
 
   const handleMapReady = (mapInstance: mapboxgl.Map) => {
@@ -423,7 +440,7 @@ try {
     websiteUrl: selectedEvent.website_url,
     rating: Math.random() * 2 + 3, // Mock rating
     attendees: Math.floor(Math.random() * 200) + 50, // Mock attendees
-    isFavorite: Math.random() > 0.5, // Mock favorite status
+    isFavorite: favorites.has(selectedEvent.id),
     organizerId: selectedEvent.organizer_id,
   } : null;
 
@@ -436,6 +453,8 @@ try {
         onMapReady={handleMapReady}
         selectedEventId={selectedEventId}
         onUserLocationChange={setUserLocation}
+        onFavoritesChange={handleFavoritesChange}
+        onToggleFavorite={() => {}} // Not needed here since InfoPanel handles it
       />
       
       {/* Floating Create Event Button */}
@@ -457,6 +476,7 @@ try {
         onDelete={handleDeleteEvent}
         onCalculateRoute={calculateRoute}
         userLocation={userLocation}
+        onFavoriteToggle={handleFavoriteToggle}
       />
       
       <EventCreateModal
