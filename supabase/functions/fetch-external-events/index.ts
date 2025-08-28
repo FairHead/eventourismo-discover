@@ -93,8 +93,11 @@ serve(async (req) => {
       );
     }
 
-    const { bounds } = await req.json();
-    console.log('Fetching external events for bounds:', bounds);
+    const body = await req.json();
+    const inputBounds = body?.bounds || body?.bbox || null;
+    const dateFrom = body?.date_from || null;
+    const dateTo = body?.date_to || null;
+    console.log('Fetching external events for bounds/bbox:', inputBounds, 'dateFrom:', dateFrom, 'dateTo:', dateTo);
 
     // Fetch events from Ticketmaster API for Germany
     const eventsUrl = new URL('https://app.ticketmaster.com/discovery/v2/events.json');
@@ -103,20 +106,31 @@ serve(async (req) => {
     eventsUrl.searchParams.set('locale', 'de-de');
     eventsUrl.searchParams.set('size', '50');
     eventsUrl.searchParams.set('sort', 'date,asc');
+
+    if (dateFrom) eventsUrl.searchParams.set('startDateTime', new Date(dateFrom).toISOString());
+    if (dateTo) eventsUrl.searchParams.set('endDateTime', new Date(dateTo).toISOString());
     
     // Add geographic bounds if provided
-    if (bounds) {
-      // Ticketmaster uses geoPoint and radius instead of bounds
-      const centerLat = (bounds.north + bounds.south) / 2;
-      const centerLng = (bounds.east + bounds.west) / 2;
-      
-      // Calculate radius in km (rough approximation)
-      const latDiff = bounds.north - bounds.south;
-      const lngDiff = bounds.east - bounds.west;
-      const radius = Math.max(latDiff, lngDiff) * 111; // Convert degrees to km (rough)
-      
-      eventsUrl.searchParams.set('geoPoint', `${centerLat},${centerLng}`);
-      eventsUrl.searchParams.set('radius', Math.min(Math.max(radius, 10), 500).toString()); // Between 10-500km
+    if (inputBounds) {
+      // Ticketmaster uses latlong and radius instead of bounds
+      const north = inputBounds.north;
+      const south = inputBounds.south;
+      const east = inputBounds.east;
+      const west = inputBounds.west;
+
+      if (typeof north === 'number' && typeof south === 'number' && typeof east === 'number' && typeof west === 'number') {
+        const centerLat = (north + south) / 2;
+        const centerLng = (east + west) / 2;
+        
+        // Calculate radius in km (rough approximation)
+        const latDiff = Math.abs(north - south);
+        const lngDiff = Math.abs(east - west);
+        const radiusKm = Math.max(latDiff, lngDiff) * 111; // Convert degrees to km (rough)
+        
+        eventsUrl.searchParams.set('latlong', `${centerLat},${centerLng}`);
+        eventsUrl.searchParams.set('radius', Math.min(Math.max(Math.round(radiusKm), 10), 500).toString()); // Between 10-500km
+        eventsUrl.searchParams.set('unit', 'km');
+      }
     }
 
     console.log('Fetching from Ticketmaster:', eventsUrl.toString());
