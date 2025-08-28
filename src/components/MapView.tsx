@@ -101,16 +101,19 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
   } | null>(null);
   // External events state
   const [externalEvents, setExternalEvents] = useState<ExternalEvent[]>([]);
-  const [externalEventMarkers, setExternalEventMarkers] = useState<mapboxgl.Marker[]>([]);
+  const externalEventMarkersRef = useRef<mapboxgl.Marker[]>([]);
   const [showExternalEventsPanel, setShowExternalEventsPanel] = useState(false);
   const [selectedVenueEvents, setSelectedVenueEvents] = useState<ExternalEvent[]>([]);
   const [selectedVenueName, setSelectedVenueName] = useState<string>('');
   const [selectedVenueAddress, setSelectedVenueAddress] = useState<string>('');
-  // Removed Mapbox popup state to avoid duplicate UI
+  const externalFetchReqIdRef = useRef(0);
 
   // Fetch external events for current map bounds
   const fetchExternalEvents = async (bounds: mapboxgl.LngLatBounds) => {
     if (!map.current) return;
+
+    // Ensure only the latest fetch renders markers
+    const reqId = ++externalFetchReqIdRef.current;
     
     try {
       const sw = bounds.getSouthWest();
@@ -165,13 +168,18 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
         }
       }
 
+      // If a newer request started, ignore this result
+      if (reqId !== externalFetchReqIdRef.current) {
+        console.info('Discarding stale external events response (reqId', reqId, 'current', externalFetchReqIdRef.current, ')');
+        return;
+      }
+
       setExternalEvents(events);
       updateExternalEventPins(events);
     } catch (error) {
       console.error('Error fetching external events:', error);
     }
   };
-
   // Fetch user's favorites
   const fetchFavorites = async () => {
     if (!user) return;
@@ -865,8 +873,11 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       }
     });
     setClusterMarkers([]);
-    externalEventMarkers.forEach(marker => marker.remove());
-    setExternalEventMarkers([]);
+    // Also clear external event markers safely
+    externalEventMarkersRef.current.forEach(marker => {
+      try { marker.remove(); } catch {}
+    });
+    externalEventMarkersRef.current = [];
   };
 
   // Update external event pins on map
@@ -874,12 +885,27 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     if (!map.current) return;
 
     // Clear existing external event markers
-    externalEventMarkers.forEach(marker => marker.remove());
-    setExternalEventMarkers([]);
+    externalEventMarkersRef.current.forEach(marker => {
+      try { marker.remove(); } catch {}
+    });
+    externalEventMarkersRef.current = [];
 
-  // Group events by venue
-  const venueGroups = events.reduce((groups, event) => {
-    const key = `${event.venue.name}-${event.venue.lat}-${event.venue.lng}`;
+  // Group events by venue (with safe coordinates and stable keys)
+  const safeEvents = events
+    .map((e) => {
+      const lat = Number((e.venue as any).lat);
+      const lng = Number((e.venue as any).lng);
+      return { ...e, venue: { ...e.venue, lat, lng } } as ExternalEvent;
+    })
+    .filter((e) =>
+      Number.isFinite(e.venue.lat) &&
+      Number.isFinite(e.venue.lng) &&
+      Math.abs(e.venue.lat) <= 90 &&
+      Math.abs(e.venue.lng) <= 180
+    );
+
+  const venueGroups = safeEvents.reduce((groups, event) => {
+    const key = `${event.venue.id || event.venue.name}-${event.venue.lat.toFixed(5)}-${event.venue.lng.toFixed(5)}`;
     if (!groups[key]) {
       groups[key] = {
         venue: event.venue,
@@ -979,7 +1005,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     newMarkers.push(marker);
   });
 
-  setExternalEventMarkers(newMarkers);
+  externalEventMarkersRef.current = newMarkers;
   };
 
   const addCityClusters = () => {
