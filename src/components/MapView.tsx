@@ -1058,8 +1058,27 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
         inner.textContent = cluster.venues.length.toString();
         inner.style.color = isTicketmaster ? '#1d4ed8' : '#059669';
       } else {
-        // Show location pin icon for single venues (matching event pins)
-        inner.innerHTML = '📍';
+        // Show image inside pin for single venues, fallback to pin emoji
+        let imgUrl: string | undefined;
+        for (const v of cluster.venues) {
+          const withImg = v.events.find(ev => ev.image_url);
+          if (withImg && withImg.image_url) { imgUrl = withImg.image_url; break; }
+        }
+        if (imgUrl) {
+          const img = document.createElement('img');
+          img.src = imgUrl;
+          img.alt = `${cluster.venues[0].venue.name} event image`;
+          img.style.width = '20px';
+          img.style.height = '20px';
+          img.style.borderRadius = '50%';
+          img.style.objectFit = 'cover';
+          img.referrerPolicy = 'no-referrer';
+          // Prevent drag ghost image
+          img.draggable = false;
+          inner.appendChild(img);
+        } else {
+          inner.textContent = '📍';
+        }
       }
 
       el.appendChild(inner);
@@ -1119,6 +1138,12 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     const newPinsKey = Object.keys(venueGroups).sort().join('|') + `:${safeEvents.length}`;
     lastExternalPinsKeyRef.current = newPinsKey;
   };
+
+  // Refresh external venue pins when data or readiness changes
+  useEffect(() => {
+    if (!map.current || !isMapboxReady) return;
+    updateExternalEventPins(externalEvents);
+  }, [externalEvents, isMapboxReady]);
   const addCityClusters = () => {
     if (!map.current) return;
 
