@@ -83,7 +83,7 @@ const ExternalEventsPanel: React.FC<ExternalEventsPanelProps> = ({
           .delete()
           .eq('user_id', user.id)
           .eq('target_id', event.id)
-          .eq('target_type', 'event');
+          .eq('target_type', 'external_event');
 
         if (error) throw error;
 
@@ -100,7 +100,7 @@ const ExternalEventsPanel: React.FC<ExternalEventsPanelProps> = ({
           .insert({
             user_id: user.id,
             target_id: event.id,
-            target_type: 'event'
+            target_type: 'external_event'
           });
 
         if (error) throw error;
