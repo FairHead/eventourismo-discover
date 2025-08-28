@@ -347,13 +347,11 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
           }
         });
 
-        // Auto-fetch external events when map loads
-        map.current.on('idle', () => {
-          if (map.current) {
-            const bounds = map.current.getBounds();
-            fetchExternalEvents(bounds);
-          }
-        });
+        // Initial fetch once after map load
+        if (map.current) {
+          const initialBounds = map.current.getBounds();
+          fetchExternalEvents(initialBounds);
+        }
 
         // Also fetch when map moves
         map.current.on('moveend', () => {
@@ -890,49 +888,50 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
   const updateExternalEventPins = (events: ExternalEvent[]) => {
     if (!map.current) return;
 
-    // Clear existing external event markers
+    // Prepare and group events by venue (with safe coordinates and stable keys)
+    const safeEvents = events
+      .map((e) => {
+        const lat = Number((e.venue as any).lat);
+        const lng = Number((e.venue as any).lng);
+        return { ...e, venue: { ...e.venue, lat, lng } } as ExternalEvent;
+      })
+      .filter((e) =>
+        Number.isFinite(e.venue.lat) &&
+        Number.isFinite(e.venue.lng) &&
+        Math.abs(e.venue.lat) <= 90 &&
+        Math.abs(e.venue.lng) <= 180
+      );
+
+    const venueGroups = safeEvents.reduce((groups, event) => {
+      const key = `${event.venue.id || event.venue.name}-${event.venue.lat.toFixed(5)}-${event.venue.lng.toFixed(5)}`;
+      if (!groups[key]) {
+        groups[key] = {
+          venue: event.venue,
+          events: []
+        };
+      }
+      groups[key].events.push(event);
+      return groups;
+    }, {} as Record<string, { venue: ExternalEvent['venue'], events: ExternalEvent[] }>);
+
+    const newPinsKey = Object.entries(venueGroups)
+      .map(([key, group]) => `${key}#${group.events.length}`)
+      .sort()
+      .join('|');
+
+    // If nothing changed, keep existing markers (avoid flicker)
+    if (newPinsKey === lastExternalPinsKeyRef.current) {
+      console.info('External pins unchanged, skipping re-render. Venues:', Object.keys(venueGroups).length);
+      return;
+    }
+
+    // Clear existing external event markers only when content changed
     externalEventMarkersRef.current.forEach(marker => {
       try { marker.remove(); } catch {}
     });
     externalEventMarkersRef.current = [];
 
-  // Group events by venue (with safe coordinates and stable keys)
-  const safeEvents = events
-    .map((e) => {
-      const lat = Number((e.venue as any).lat);
-      const lng = Number((e.venue as any).lng);
-      return { ...e, venue: { ...e.venue, lat, lng } } as ExternalEvent;
-    })
-    .filter((e) =>
-      Number.isFinite(e.venue.lat) &&
-      Number.isFinite(e.venue.lng) &&
-      Math.abs(e.venue.lat) <= 90 &&
-      Math.abs(e.venue.lng) <= 180
-    );
-
-  const venueGroups = safeEvents.reduce((groups, event) => {
-    const key = `${event.venue.id || event.venue.name}-${event.venue.lat.toFixed(5)}-${event.venue.lng.toFixed(5)}`;
-    if (!groups[key]) {
-      groups[key] = {
-        venue: event.venue,
-        events: []
-      };
-    }
-    groups[key].events.push(event);
-    return groups;
-  }, {} as Record<string, { venue: ExternalEvent['venue'], events: ExternalEvent[] }>);
-
-  const newPinsKey = Object.entries(venueGroups)
-    .map(([key, group]) => `${key}#${group.events.length}`)
-    .sort()
-    .join('|');
-
-  if (newPinsKey === lastExternalPinsKeyRef.current) {
-    console.info('External pins unchanged, skipping re-render. Venues:', Object.keys(venueGroups).length);
-    return;
-  }
-
-  console.info('Rendering external pins. Venues:', Object.keys(venueGroups).length);
+    console.info('Rendering external pins. Venues:', Object.keys(venueGroups).length);
 
   // Create markers for each venue
   const newMarkers: mapboxgl.Marker[] = [];
