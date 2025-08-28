@@ -12,11 +12,15 @@ serve(async (req) => {
   }
 
   try {
-    const mapboxToken = Deno.env.get('MAPBOX_PUBLIC_TOKEN')
+    const mapboxTokenRaw = Deno.env.get('MAPBOX_PUBLIC_TOKEN');
+    const mapboxToken = mapboxTokenRaw ? mapboxTokenRaw.trim() : '';
+
+    // Basic logging for debugging (does not expose the token)
+    console.log('[get-mapbox-token] invoked. Token present:', Boolean(mapboxToken));
     
     if (!mapboxToken) {
       return new Response(
-        JSON.stringify({ error: 'Mapbox token not configured' }),
+        JSON.stringify({ error: 'Mapbox token not configured or empty' }),
         { 
           status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -31,8 +35,9 @@ serve(async (req) => {
       }
     )
   } catch (error) {
+    console.error('[get-mapbox-token] unexpected error:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: (error as Error).message || 'Unknown error' }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
