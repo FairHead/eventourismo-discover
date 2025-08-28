@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import NavigationSystem from './NavigationSystem';
+import ExternalEventsPanel from './ExternalEventsPanel';
 
 interface MapViewProps {
   onPinClick?: (eventId: string) => void;
@@ -18,6 +19,26 @@ interface MapViewProps {
   onUserLocationChange?: (coords: [number, number]) => void;
   onFavoritesChange?: (favorites: Set<string>) => void;
   onToggleFavorite?: (eventId: string) => void;
+}
+
+interface ExternalEvent {
+  id: string;
+  title: string;
+  starts_at: string;
+  ends_at?: string;
+  category?: string;
+  description?: string;
+  image_url?: string;
+  ticket_url?: string;
+  source: 'ticketmaster' | 'eventbrite' | 'meetup' | 'kulturdaten-berlin' | 'koeln-opendata';
+  venue: {
+    id?: string;
+    name: string;
+    address?: string;
+    city?: string;
+    lat: number;
+    lng: number;
+  };
 }
 
 interface EventData {
@@ -78,7 +99,46 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     name: string;
     coords: [number, number];
   } | null>(null);
+  // External events state
+  const [externalEvents, setExternalEvents] = useState<ExternalEvent[]>([]);
+  const [externalEventMarkers, setExternalEventMarkers] = useState<mapboxgl.Marker[]>([]);
+  const [showExternalEventsPanel, setShowExternalEventsPanel] = useState(false);
+  const [selectedVenueEvents, setSelectedVenueEvents] = useState<ExternalEvent[]>([]);
+  const [selectedVenueName, setSelectedVenueName] = useState<string>('');
+  const [selectedVenueAddress, setSelectedVenueAddress] = useState<string>('');
   // Removed Mapbox popup state to avoid duplicate UI
+
+  // Fetch external events for current map bounds
+  const fetchExternalEvents = async (bounds: mapboxgl.LngLatBounds) => {
+    if (!map.current) return;
+    
+    try {
+      const sw = bounds.getSouthWest();
+      const ne = bounds.getNorthEast();
+      
+      const { data, error } = await supabase.functions.invoke('fetch-external-events', {
+        body: {
+          bbox: {
+            south: sw.lat,
+            west: sw.lng,
+            north: ne.lat,
+            east: ne.lng
+          },
+          date_from: new Date().toISOString(),
+          date_to: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString() // 14 days from now
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.events) {
+        setExternalEvents(data.events);
+        updateExternalEventPins(data.events);
+      }
+    } catch (error) {
+      console.error('Error fetching external events:', error);
+    }
+  };
 
   // Fetch user's favorites
   const fetchFavorites = async () => {
