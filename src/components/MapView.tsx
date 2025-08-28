@@ -141,33 +141,31 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       let events: ExternalEvent[] = primary.data?.events ?? [];
       console.info('External events result (bounds-based):', events.length);
 
-      // Fallback: If no events in current view, query Nürnberg area with larger radius and longer window
-      if (events.length === 0) {
-        const nbg = { lat: 49.4521, lng: 11.0767 };
-        const radiusKm = 100; // ~Nürnberg Region
-        const degLat = radiusKm / 111; // ~111km per degree latitude
-        const degLng = radiusKm / (111 * Math.cos((nbg.lat * Math.PI) / 180));
+        // Fallback: If no events in current view, query all of Germany (max radius)
+        if (events.length === 0) {
+          // Germany approximate bounding box
+          const deBBox = {
+            south: 47.270111,
+            west: 5.866342,
+            north: 55.058347,
+            east: 15.041896,
+          };
 
-        const fallbackBody = {
-          bbox: {
-            south: nbg.lat - degLat,
-            west: nbg.lng - degLng,
-            north: nbg.lat + degLat,
-            east: nbg.lng + degLng
-          },
-          date_from: new Date().toISOString(),
-          date_to: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString() // 60 days
-        };
+          const fallbackBody = {
+            bbox: deBBox,
+            date_from: new Date().toISOString(),
+            date_to: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(), // 60 days
+          };
 
-        console.info('No external events in view. Falling back to Nürnberg radius 100km:', fallbackBody.bbox);
-        const fallback = await supabase.functions.invoke('fetch-external-events', {
-          body: fallbackBody
-        });
-        if (!fallback.error && fallback.data?.events) {
-          events = fallback.data.events as ExternalEvent[];
-          console.info('External events result (Nürnberg-fallback):', events.length);
+          console.info('No external events in view. Falling back to Germany bbox:', fallbackBody.bbox);
+          const fallback = await supabase.functions.invoke('fetch-external-events', {
+            body: fallbackBody,
+          });
+          if (!fallback.error && fallback.data?.events) {
+            events = fallback.data.events as ExternalEvent[];
+            console.info('External events result (Germany-fallback):', events.length);
+          }
         }
-      }
 
       // If a newer request started, ignore this result
       if (reqId !== externalFetchReqIdRef.current) {
