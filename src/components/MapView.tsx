@@ -115,8 +115,10 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     try {
       const sw = bounds.getSouthWest();
       const ne = bounds.getNorthEast();
-      
-      const { data, error } = await supabase.functions.invoke('fetch-external-events', {
+
+      console.info('Fetching external events for bounds:', { sw, ne });
+
+      const primary = await supabase.functions.invoke('fetch-external-events', {
         body: {
           bbox: {
             south: sw.lat,
@@ -124,17 +126,47 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
             north: ne.lat,
             east: ne.lng
           },
+          // Extend primary window to 30 days to increase hit rate
           date_from: new Date().toISOString(),
-          date_to: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString() // 14 days from now
+          date_to: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
         }
       });
 
-      if (error) throw error;
+      if (primary.error) throw primary.error;
 
-      if (data?.events) {
-        setExternalEvents(data.events);
-        updateExternalEventPins(data.events);
+      let events: ExternalEvent[] = primary.data?.events ?? [];
+      console.info('External events result (bounds-based):', events.length);
+
+      // Fallback: If no events in current view, query Nürnberg area with larger radius and longer window
+      if (events.length === 0) {
+        const nbg = { lat: 49.4521, lng: 11.0767 };
+        const radiusKm = 100; // ~Nürnberg Region
+        const degLat = radiusKm / 111; // ~111km per degree latitude
+        const degLng = radiusKm / (111 * Math.cos((nbg.lat * Math.PI) / 180));
+
+        const fallbackBody = {
+          bbox: {
+            south: nbg.lat - degLat,
+            west: nbg.lng - degLng,
+            north: nbg.lat + degLat,
+            east: nbg.lng + degLng
+          },
+          date_from: new Date().toISOString(),
+          date_to: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString() // 60 days
+        };
+
+        console.info('No external events in view. Falling back to Nürnberg radius 100km:', fallbackBody.bbox);
+        const fallback = await supabase.functions.invoke('fetch-external-events', {
+          body: fallbackBody
+        });
+        if (!fallback.error && fallback.data?.events) {
+          events = fallback.data.events as ExternalEvent[];
+          console.info('External events result (Nürnberg-fallback):', events.length);
+        }
       }
+
+      setExternalEvents(events);
+      updateExternalEventPins(events);
     } catch (error) {
       console.error('Error fetching external events:', error);
     }
@@ -888,6 +920,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       box-shadow: 0 2px 8px ${isTicketmaster ? 'rgba(0, 102, 204, 0.3)' : 'rgba(16, 185, 129, 0.3)'};
       transition: all 0.2s ease;
       position: relative;
+      z-index: 10;
     `;
     
     // Add event count
@@ -1676,6 +1709,16 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
             )}
           </div>
         </div>
+      )}
+      {/* External Events Panel */}
+      {showExternalEventsPanel && (
+        <ExternalEventsPanel
+          isOpen={showExternalEventsPanel}
+          onClose={() => setShowExternalEventsPanel(false)}
+          venueEvents={selectedVenueEvents}
+          venueName={selectedVenueName}
+          venueAddress={selectedVenueAddress}
+        />
       )}
     </div>
   );
