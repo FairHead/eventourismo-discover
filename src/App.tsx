@@ -10,6 +10,7 @@ import BandProfile from "./pages/BandProfile";
 import EventCreate from "./pages/EventCreate";
 import Search from "./pages/Search";
 import Favorites from "./pages/Favorites";
+import MyEvents from "./pages/MyEvents";
 import BottomNavigation from "./components/BottomNavigation";
 import ProtectedRoute from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
@@ -53,6 +54,11 @@ const App = () => {
         <Route path="/profile" element={
           <ProtectedRoute>
             <Profile />
+          </ProtectedRoute>
+        } />
+        <Route path="/my-events" element={
+          <ProtectedRoute>
+            <MyEvents />
           </ProtectedRoute>
         } />
         <Route path="/band/:slug" element={
