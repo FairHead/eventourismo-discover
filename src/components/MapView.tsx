@@ -1010,19 +1010,13 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     } else {
       map.current.addSource(sourceId, { type: 'geojson', data: fc as any });
 
-      // Circles for pins
+      // Simple location pins
       map.current.addLayer({
         id: circleLayerId,
         type: 'circle',
         source: sourceId,
         paint: {
-          'circle-radius': [
-            'interpolate', ['linear'], ['get', 'count'],
-            1, 10,
-            5, 13,
-            10, 16,
-            20, 20
-          ],
+          'circle-radius': 8,
           'circle-color': [
             'match', ['get', 'sourceTag'],
             'ticketmaster', '#1d4ed8',
@@ -1030,25 +1024,26 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
           ],
           'circle-stroke-color': '#ffffff',
           'circle-stroke-width': 2,
-          'circle-opacity': 0.95,
+          'circle-opacity': 0.9,
         },
       });
 
-      // Labels with counts
+      // Location pin icon
       map.current.addLayer({
         id: labelLayerId,
         type: 'symbol',
         source: sourceId,
         layout: {
-          'text-field': ['to-string', ['get', 'count']],
-          'text-size': 12,
-          'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+          'icon-image': 'mapbox-marker-icon-default',
+          'icon-size': 0.5,
+          'icon-allow-overlap': true,
+          'text-field': '📍',
+          'text-size': 14,
           'text-allow-overlap': true,
+          'text-offset': [0, 0],
         },
         paint: {
           'text-color': '#ffffff',
-          'text-halo-color': '#000000',
-          'text-halo-width': 0.8,
         },
       });
 
