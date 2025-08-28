@@ -108,10 +108,17 @@ serve(async (req) => {
     eventsUrl.searchParams.set('sort', 'date,asc');
     eventsUrl.searchParams.set('classificationName', 'Music');
 
-    if (dateFrom) eventsUrl.searchParams.set('startDateTime', new Date(dateFrom).toISOString());
-    if (dateTo) eventsUrl.searchParams.set('endDateTime', new Date(dateTo).toISOString());
+    // Format dates for Ticketmaster API (YYYY-MM-DDTHH:mm:ssZ)
+    if (dateFrom) {
+      const startDate = new Date(dateFrom);
+      eventsUrl.searchParams.set('startDateTime', startDate.toISOString().replace(/\.\d{3}Z$/, 'Z'));
+    }
+    if (dateTo) {
+      const endDate = new Date(dateTo);
+      eventsUrl.searchParams.set('endDateTime', endDate.toISOString().replace(/\.\d{3}Z$/, 'Z'));
+    }
     
-    // Add geographic bounds if provided
+    // Add geographic bounds if provided, otherwise default to Nürnberg area
     if (inputBounds) {
       // Ticketmaster uses latlong and radius instead of bounds
       const north = inputBounds.north;
@@ -132,6 +139,11 @@ serve(async (req) => {
         eventsUrl.searchParams.set('radius', Math.min(Math.max(Math.round(radiusKm), 10), 500).toString()); // Between 10-500km
         eventsUrl.searchParams.set('unit', 'km');
       }
+    } else {
+      // Default to Nürnberg area if no bounds provided
+      eventsUrl.searchParams.set('latlong', '49.4521,11.0767');
+      eventsUrl.searchParams.set('radius', '50');
+      eventsUrl.searchParams.set('unit', 'km');
     }
 
     console.log('Fetching from Ticketmaster:', eventsUrl.toString());
