@@ -14,6 +14,7 @@ interface MapViewProps {
   loading?: boolean;
   onMapReady?: (mapInstance: mapboxgl.Map) => void;
   selectedEventId?: string | null;
+  onUserLocationChange?: (coords: [number, number]) => void;
 }
 
 interface EventData {
@@ -41,7 +42,7 @@ interface EventData {
   };
 }
 
-const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = false, onMapReady, selectedEventId }) => {
+const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = false, onMapReady, selectedEventId, onUserLocationChange }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
@@ -153,10 +154,11 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
 
     // Center map on user's current position and create marker
     navigator.geolocation.getCurrentPosition(
-      (position) => {
+(position) => {
         const coords: [number, number] = [position.coords.longitude, position.coords.latitude];
         console.log('Got initial user location:', coords);
         setUserLocation(coords);
+        onUserLocationChange?.(coords);
         
         // Check if we came from Event Search with a specific event to focus on
         const hasPendingEventFocus = !!sessionStorage.getItem('focusEventId') && !!sessionStorage.getItem('focusEventData');
@@ -199,10 +201,11 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     if (geoWatchIdRef.current === null) {
       console.log('Starting geolocation watch...');
       geoWatchIdRef.current = navigator.geolocation.watchPosition(
-        (position) => {
+(position) => {
           const coords: [number, number] = [position.coords.longitude, position.coords.latitude];
           console.log('Location update:', coords, 'accuracy(m):', position.coords.accuracy);
           setUserLocation(coords);
+          onUserLocationChange?.(coords);
           lastAccuracyRef.current = position.coords.accuracy ?? null;
           lastCoordsRef.current = coords;
           

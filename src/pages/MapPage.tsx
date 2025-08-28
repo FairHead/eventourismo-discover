@@ -49,9 +49,10 @@ const MapPage: React.FC = () => {
   const [editEventId, setEditEventId] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteEventId, setDeleteEventId] = useState<string | null>(null);
-  const [currentMapPosition, setCurrentMapPosition] = useState<{center: [number, number], zoom: number} | null>(null);
-  const [mapInstance, setMapInstance] = useState<mapboxgl.Map | null>(null);
-  const { user } = useAuth();
+const [currentMapPosition, setCurrentMapPosition] = useState<{center: [number, number], zoom: number} | null>(null);
+const [mapInstance, setMapInstance] = useState<mapboxgl.Map | null>(null);
+const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+const { user } = useAuth();
 
   const fetchEvents = async () => {
     try {
@@ -266,25 +267,29 @@ const MapPage: React.FC = () => {
       throw new Error('Map not ready');
     }
 
-    // Always use the actual user location from MapView, not map center
-    const userLocation = currentMapPosition.center;
+// Verwende die echte Geoposition aus MapView
+if (!userLocation) {
+  toast.error('Standort wird noch ermittelt. Bitte Standortzugriff erlauben.');
+  return;
+}
+const origin = userLocation;
     
-    try {
-      // Get Mapbox token
-      const { data: tokenData, error } = await supabase.functions.invoke('get-mapbox-token');
-      if (error) throw error;
+try {
+  // Get Mapbox token
+  const { data: tokenData, error } = await supabase.functions.invoke('get-mapbox-token');
+  if (error) throw error;
 
-      // Snap destination to nearest road/address for better routing
-      const snappedDestination = await getNearestAddress(destination, tokenData.token);
-      console.log('Routing from user location:', userLocation, 'to snapped destination:', snappedDestination);
+  // Snap destination to nearest road/address for better routing
+  const snappedDestination = await getNearestAddress(destination, tokenData.token);
+  console.log('Routing from user location:', origin, 'to snapped destination:', snappedDestination);
 
-      const profile = mode === 'cycling' ? 'cycling' : 
-                    mode === 'walking' ? 'walking' : 'driving';
-      
-      const response = await fetch(
-        `https://api.mapbox.com/directions/v5/mapbox/${profile}/${userLocation[0]},${userLocation[1]};${snappedDestination[0]},${snappedDestination[1]}?` +
-        `steps=true&geometries=geojson&access_token=${tokenData.token}&language=de`
-      );
+  const profile = mode === 'cycling' ? 'cycling' : 
+                mode === 'walking' ? 'walking' : 'driving';
+  
+  const response = await fetch(
+    `https://api.mapbox.com/directions/v5/mapbox/${profile}/${origin[0]},${origin[1]};${snappedDestination[0]},${snappedDestination[1]}?` +
+    `steps=true&geometries=geojson&access_token=${tokenData.token}&language=de`
+  );
 
       if (!response.ok) throw new Error('Route calculation failed');
 
@@ -303,7 +308,7 @@ const MapPage: React.FC = () => {
         }, new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]));
         
         // Also include user location in bounds
-        bounds.extend(userLocation);
+        bounds.extend(origin);
         
         mapInstance.fitBounds(bounds, { padding: 80 });
         
@@ -430,6 +435,7 @@ const MapPage: React.FC = () => {
         loading={loading}
         onMapReady={handleMapReady}
         selectedEventId={selectedEventId}
+        onUserLocationChange={setUserLocation}
       />
       
       {/* Floating Create Event Button */}
@@ -450,7 +456,7 @@ const MapPage: React.FC = () => {
         onEdit={handleEditEvent}
         onDelete={handleDeleteEvent}
         onCalculateRoute={calculateRoute}
-        userLocation={currentMapPosition?.center || null}
+        userLocation={userLocation}
       />
       
       <EventCreateModal
