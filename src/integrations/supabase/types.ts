@@ -263,6 +263,7 @@ export type Database = {
           lng: number
           organizer_id: string
           recurrence_rule: string | null
+          sources: Json | null
           start_utc: string
           status: Database["public"]["Enums"]["event_status"]
           ticket_url: string | null
@@ -284,6 +285,7 @@ export type Database = {
           lng: number
           organizer_id: string
           recurrence_rule?: string | null
+          sources?: Json | null
           start_utc: string
           status?: Database["public"]["Enums"]["event_status"]
           ticket_url?: string | null
@@ -305,6 +307,7 @@ export type Database = {
           lng?: number
           organizer_id?: string
           recurrence_rule?: string | null
+          sources?: Json | null
           start_utc?: string
           status?: Database["public"]["Enums"]["event_status"]
           ticket_url?: string | null
@@ -590,6 +593,9 @@ export type Database = {
       venues: {
         Row: {
           address: string
+          categories: string[] | null
+          city: string | null
+          country: string | null
           created_at: string
           created_by: string
           description: string | null
@@ -601,11 +607,15 @@ export type Database = {
           opening_hours: Json | null
           phone: string | null
           socials: Json | null
+          sources: Json | null
           updated_at: string
           website: string | null
         }
         Insert: {
           address: string
+          categories?: string[] | null
+          city?: string | null
+          country?: string | null
           created_at?: string
           created_by: string
           description?: string | null
@@ -617,11 +627,15 @@ export type Database = {
           opening_hours?: Json | null
           phone?: string | null
           socials?: Json | null
+          sources?: Json | null
           updated_at?: string
           website?: string | null
         }
         Update: {
           address?: string
+          categories?: string[] | null
+          city?: string | null
+          country?: string | null
           created_at?: string
           created_by?: string
           description?: string | null
@@ -633,6 +647,7 @@ export type Database = {
           opening_hours?: Json | null
           phone?: string | null
           socials?: Json | null
+          sources?: Json | null
           updated_at?: string
           website?: string | null
         }
@@ -651,6 +666,46 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cube: {
+        Args: { "": number[] } | { "": number }
+        Returns: unknown
+      }
+      cube_dim: {
+        Args: { "": unknown }
+        Returns: number
+      }
+      cube_in: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      cube_is_point: {
+        Args: { "": unknown }
+        Returns: boolean
+      }
+      cube_out: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      cube_recv: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      cube_send: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      cube_size: {
+        Args: { "": unknown }
+        Returns: number
+      }
+      earth: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
+      gc_to_sec: {
+        Args: { "": number }
+        Returns: number
+      }
       generate_band_slug: {
         Args: { band_name: string }
         Returns: string
@@ -681,9 +736,49 @@ export type Database = {
           role: Database["public"]["Enums"]["user_role"]
         }[]
       }
+      latitude: {
+        Args: { "": unknown }
+        Returns: number
+      }
+      longitude: {
+        Args: { "": unknown }
+        Returns: number
+      }
+      sec_to_gc: {
+        Args: { "": number }
+        Returns: number
+      }
       user_can_manage_band: {
         Args: { _band_id: string; _uid: string }
         Returns: boolean
+      }
+      venues_find_candidates: {
+        Args: {
+          v_lat: number
+          v_lon: number
+          v_name: string
+          v_radius_m?: number
+        }
+        Returns: {
+          address: string
+          categories: string[] | null
+          city: string | null
+          country: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          hero_image_url: string | null
+          id: string
+          lat: number
+          lng: number
+          name: string
+          opening_hours: Json | null
+          phone: string | null
+          socials: Json | null
+          sources: Json | null
+          updated_at: string
+          website: string | null
+        }[]
       }
     }
     Enums: {
