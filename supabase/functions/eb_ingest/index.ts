@@ -127,10 +127,11 @@ function eventbriteVenueToVenue(ebVenue: EventbriteVenue) {
     lng: Number(ebVenue.longitude),
     city: ebVenue.address?.city || null,
     country: ebVenue.address?.country || 'DE',
-    address: Object.keys(addressParts).length > 0 ? JSON.stringify(addressParts) : null,
+    address: Object.keys(addressParts).length > 0 ? JSON.stringify(addressParts) : '',
     website: ebVenue.website || ebVenue.resource_uri || null,
     categories: ['event_space'], // Eventbrite venues are typically event spaces
-    sources: [{ src: 'eb', id: ebVenue.id }]
+    sources: [{ src: 'eb', id: ebVenue.id }],
+    created_by: '00000000-0000-0000-0000-000000000000' // System-generated venue
   };
 }
 

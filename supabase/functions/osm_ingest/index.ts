@@ -111,7 +111,7 @@ function osmElementToVenue(element: OSMElement) {
     lng: Number(lon),
     city: tags['addr:city'] || tags['addr:town'] || tags['addr:village'] || null,
     country: 'DE',
-    address: Object.keys(addressParts).length > 0 ? JSON.stringify(addressParts) : null,
+    address: Object.keys(addressParts).length > 0 ? JSON.stringify(addressParts) : '',
     website: tags.website || tags.url || null,
     categories: categories.length > 0 ? categories : null,
     sources: [{ src: 'osm', id: `${element.type}/${element.id}` }],

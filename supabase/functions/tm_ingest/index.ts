@@ -137,7 +137,7 @@ function ticketmasterVenueToVenue(tmVenue: TicketmasterVenue) {
     lng: Number(tmVenue.location.longitude),
     city: tmVenue.city?.name || null,
     country: tmVenue.country?.countryCode || 'DE',
-    address: Object.keys(addressParts).length > 0 ? JSON.stringify(addressParts) : null,
+    address: Object.keys(addressParts).length > 0 ? JSON.stringify(addressParts) : '',
     website: tmVenue.url || null,
     categories: ['music_venue'], // Ticketmaster venues are typically music venues
     sources: [{ src: 'tm', id: tmVenue.id }],
