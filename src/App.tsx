@@ -16,6 +16,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
 import { useSeedEvents } from "./hooks/useSeedEvents";
 import { useEventNotifications } from "./hooks/useEventNotifications";
+import { useVenueIngestion } from "./hooks/useVenueIngestion";
 
 const App = () => {
   // Seed sample events on app start
@@ -23,6 +24,9 @@ const App = () => {
   
   // Initialize event notifications
   useEventNotifications();
+  
+  // Ingest venues on app start
+  useVenueIngestion();
 
   return (
     <TooltipProvider>
