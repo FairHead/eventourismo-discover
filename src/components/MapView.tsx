@@ -1094,19 +1094,37 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     console.log(`🎯 Adding ${venuesToRender.length} venue pins to map (zoom: ${currentZoom.toFixed(1)}, clustering: ${shouldCluster})`);
     
     if (shouldCluster) {
-      // Simple grid-based clustering for performance
-      const clusterSize = 0.01; // ~1km grid
+      // Distance-based clustering for better results
+      const clusterRadius = 0.005; // ~500m radius
       const clusters = new Map<string, { venues: typeof aggregatedVenues, lat: number, lng: number }>();
       
-      venuesToRender.forEach((venue) => {
-        const gridLat = Math.floor(venue.lat / clusterSize) * clusterSize;
-        const gridLng = Math.floor(venue.lng / clusterSize) * clusterSize;
-        const key = `${gridLat}_${gridLng}`;
+      venuesToRender.forEach(venue => {
+        let addedToCluster = false;
         
-        if (!clusters.has(key)) {
-          clusters.set(key, { venues: [], lat: gridLat + clusterSize/2, lng: gridLng + clusterSize/2 });
+        // Try to add to existing cluster within radius
+        for (const [key, cluster] of clusters) {
+          const distance = Math.sqrt(
+            Math.pow(venue.lat - cluster.lat, 2) + 
+            Math.pow(venue.lng - cluster.lng, 2)
+          );
+          
+          if (distance < clusterRadius) {
+            cluster.venues.push(venue);
+            // Recalculate cluster center as average of all venues
+            const totalLat = cluster.venues.reduce((sum, v) => sum + v.lat, 0);
+            const totalLng = cluster.venues.reduce((sum, v) => sum + v.lng, 0);
+            cluster.lat = totalLat / cluster.venues.length;
+            cluster.lng = totalLng / cluster.venues.length;
+            addedToCluster = true;
+            break;
+          }
         }
-        clusters.get(key)!.venues.push(venue);
+        
+        // Create new cluster if not added to existing one
+        if (!addedToCluster) {
+          const key = `${venue.lat}_${venue.lng}`;
+          clusters.set(key, { venues: [venue], lat: venue.lat, lng: venue.lng });
+        }
       });
 
       // Create cluster markers

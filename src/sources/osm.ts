@@ -12,18 +12,15 @@ export async function fetchOsmVenues(params: VenueSearchParams): Promise<VenueRa
 
     const { minLat, minLng, maxLat, maxLng } = bbox;
 
-    // Overpass QL query for venue-related POIs in Germany
+    // Overpass QL query for clubs and concert venues only
     const query = `
       [out:json][timeout:25];
       (
-        node["amenity"~"^(theatre|cinema|music_venue|concert_hall|nightclub|bar|pub|restaurant|cafe|biergarten)$"](${minLat},${minLng},${maxLat},${maxLng});
-        node["leisure"~"^(stadium|sports_centre|fitness_centre|dance|bowling_alley)$"](${minLat},${minLng},${maxLat},${maxLng});
-        node["tourism"~"^(attraction|museum|gallery|zoo|theme_park)$"](${minLat},${minLng},${maxLat},${maxLng});
-        node["shop"~"^(mall|department_store)$"](${minLat},${minLng},${maxLat},${maxLng});
-        way["amenity"~"^(theatre|cinema|music_venue|concert_hall|nightclub|bar|pub|restaurant|cafe|biergarten)$"](${minLat},${minLng},${maxLat},${maxLng});
-        way["leisure"~"^(stadium|sports_centre|fitness_centre|dance|bowling_alley)$"](${minLat},${minLng},${maxLat},${maxLng});
-        way["tourism"~"^(attraction|museum|gallery|zoo|theme_park)$"](${minLat},${minLng},${maxLat},${maxLng});
-        relation["amenity"~"^(theatre|cinema|music_venue|concert_hall|nightclub|bar|pub|restaurant|cafe|biergarten)$"](${minLat},${minLng},${maxLat},${maxLng});
+        node["amenity"~"^(music_venue|concert_hall|nightclub|bar|pub)$"](${minLat},${minLng},${maxLat},${maxLng});
+        node["leisure"~"^(dance)$"](${minLat},${minLng},${maxLat},${maxLng});
+        way["amenity"~"^(music_venue|concert_hall|nightclub|bar|pub)$"](${minLat},${minLng},${maxLat},${maxLng});
+        way["leisure"~"^(dance)$"](${minLat},${minLng},${maxLat},${maxLng});
+        relation["amenity"~"^(music_venue|concert_hall|nightclub|bar|pub)$"](${minLat},${minLng},${maxLat},${maxLng});
       );
       out center;
     `;
@@ -78,25 +75,19 @@ export async function fetchOsmVenues(params: VenueSearchParams): Promise<VenueRa
         const tourism = element.tags.tourism;
         const shop = element.tags.shop;
         
-        let category = 'venue';
+        let category = 'nightlife';
         if (amenity) {
-          if (['theatre', 'cinema', 'music_venue', 'concert_hall'].includes(amenity)) {
-            category = 'entertainment';
-          } else if (['nightclub', 'bar', 'pub'].includes(amenity)) {
-            category = 'nightlife';
-          } else if (['restaurant', 'cafe', 'biergarten'].includes(amenity)) {
-            category = 'dining';
+          if (['music_venue', 'concert_hall'].includes(amenity)) {
+            category = 'music';
+          } else if (['nightclub'].includes(amenity)) {
+            category = 'nightclub';
+          } else if (['bar', 'pub'].includes(amenity)) {
+            category = 'bar';
           }
         } else if (leisure) {
-          if (['stadium', 'sports_centre'].includes(leisure)) {
-            category = 'sports';
-          } else if (['dance', 'bowling_alley'].includes(leisure)) {
-            category = 'entertainment';
+          if (['dance'].includes(leisure)) {
+            category = 'dance';
           }
-        } else if (tourism) {
-          category = 'attraction';
-        } else if (shop) {
-          category = 'shopping';
         }
 
         return {
