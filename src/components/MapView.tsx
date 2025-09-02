@@ -1034,49 +1034,79 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     setVenueMarkers([]);
   };
 
+  const clearAggregatedVenueMarkers = () => {
+    console.log('Clearing', aggregatedVenueMarkers.length, 'aggregated venue markers');
+    aggregatedVenueMarkers.forEach(marker => {
+      try {
+        marker.remove();
+      } catch (error) {
+        console.warn('Error removing aggregated venue marker:', error);
+      }
+    });
+    setAggregatedVenueMarkers([]);
+  };
+
   // Add aggregated venue pins from external APIs
   const addAggregatedVenuePins = () => {
     if (!map.current || aggregatedVenues.length === 0) return;
 
+    // Clear existing aggregated venue markers
+    clearAggregatedVenueMarkers();
+    const newMarkers: mapboxgl.Marker[] = [];
+
     console.log(`🎯 Adding ${aggregatedVenues.length} venue pins to map`);
     
     aggregatedVenues.forEach((venue) => {
-      // Create custom pin element
-      const pinElement = document.createElement('div');
-      pinElement.className = 'venue-pin';
-      pinElement.style.cssText = `
-        width: 20px;
-        height: 20px;
-        background: hsl(var(--primary));
-        border: 2px solid white;
-        border-radius: 50%;
-        cursor: pointer;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        transition: transform 0.2s ease;
-      `;
-      
+      // Create marker with inner content to avoid overriding Mapbox transforms
+      const el = document.createElement('div');
+      el.setAttribute('data-venue-id', venue.id);
+      el.style.cursor = 'pointer';
+      el.style.zIndex = '50';
+
+      const inner = document.createElement('div');
+      inner.style.width = '24px';
+      inner.style.height = '24px';
+      inner.style.borderRadius = '50%';
+      inner.style.display = 'flex';
+      inner.style.alignItems = 'center';
+      inner.style.justifyContent = 'center';
+      inner.style.fontSize = '12px';
+      inner.style.userSelect = 'none';
+      inner.style.backgroundColor = 'hsl(var(--primary))';
+      inner.style.border = '2px solid white';
+      inner.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
+      inner.style.transition = 'transform 0.2s ease';
+      inner.style.transformOrigin = 'center center';
+      inner.style.willChange = 'transform';
+      inner.textContent = '🏢';
+
+      el.appendChild(inner);
+
       // Add hover effect
-      pinElement.onmouseenter = () => {
-        pinElement.style.transform = 'scale(1.2)';
-      };
-      pinElement.onmouseleave = () => {
-        pinElement.style.transform = 'scale(1)';
-      };
+      el.addEventListener('mouseenter', () => {
+        inner.style.transform = 'scale(1.2)';
+      });
+      
+      el.addEventListener('mouseleave', () => {
+        inner.style.transform = 'scale(1)';
+      });
+
+      // Add click handler for venue info
+      el.addEventListener('click', () => {
+        console.log('🏟️ Venue clicked:', venue.name, 'from sources:', venue.sources.map(s => s.source).join(', '));
+        // TODO: Implement venue info panel
+      });
 
       // Create marker
-      const marker = new mapboxgl.Marker(pinElement)
+      const marker = new mapboxgl.Marker(el)
         .setLngLat([venue.lng, venue.lat])
         .addTo(map.current!);
 
-      // Add click handler for venue info
-      pinElement.onclick = () => {
-        console.log('🏟️ Venue clicked:', venue.name);
-        // TODO: Implement venue info panel
-      };
-
-      // Store marker for cleanup
-      setVenueMarkers(prev => [...prev, marker]);
+      newMarkers.push(marker);
     });
+
+    setAggregatedVenueMarkers(newMarkers);
+    console.log(`Created ${newMarkers.length} venue markers`);
   };
 
   // Load aggregated venues when they change
