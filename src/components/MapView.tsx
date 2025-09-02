@@ -101,7 +101,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     try {
       console.log('🚀 Fetching aggregated venues for bounds...');
       const bbox = mapBoundsToBBox(bounds);
-      const venues = await loadAggregatedVenues(bbox);
+      const venues = await loadAggregatedVenues({ bbox });
       setAggregatedVenues(venues);
       console.log(`📍 Loaded ${venues.length} aggregated venues from APIs`);
     } catch (error) {
@@ -1038,48 +1038,45 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
   const addAggregatedVenuePins = () => {
     if (!map.current || aggregatedVenues.length === 0) return;
 
-    // Clear existing aggregated venue markers
-    aggregatedVenueMarkers.forEach(marker => marker.remove());
-    const newMarkers: mapboxgl.Marker[] = [];
-
-    console.log(`Adding ${aggregatedVenues.length} aggregated venue pins from APIs`);
-
+    console.log(`🎯 Adding ${aggregatedVenues.length} venue pins to map`);
+    
     aggregatedVenues.forEach((venue) => {
-      const el = document.createElement('div');
-      el.style.cursor = 'pointer';
-      el.style.width = '24px';
-      el.style.height = '24px';
-      el.style.borderRadius = '50%';
-      el.style.display = 'flex';
-      el.style.alignItems = 'center';
-      el.style.justifyContent = 'center';
-      el.style.fontSize = '12px';
-      el.style.color = 'white';
-      el.style.border = '2px solid white';
-      el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
+      // Create custom pin element
+      const pinElement = document.createElement('div');
+      pinElement.className = 'venue-pin';
+      pinElement.style.cssText = `
+        width: 20px;
+        height: 20px;
+        background: hsl(var(--primary));
+        border: 2px solid white;
+        border-radius: 50%;
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        transition: transform 0.2s ease;
+      `;
       
-      // Color based on source priority
-      const primarySource = venue.sources[0]?.source;
-      switch (primarySource) {
-        case 'osm': el.style.backgroundColor = '#4CAF50'; break;
-        case 'ticketmaster': el.style.backgroundColor = '#2196F3'; break;
-        case 'eventbrite': el.style.backgroundColor = '#FF9800'; break;
-        case 'eventourismo': el.style.backgroundColor = '#9C27B0'; break;
-        default: el.style.backgroundColor = '#757575';
-      }
-      
-      el.textContent = venue.category === 'entertainment' ? '🎭' : 
-                      venue.category === 'nightlife' ? '🍺' :
-                      venue.category === 'sports' ? '⚽' : '📍';
+      // Add hover effect
+      pinElement.onmouseenter = () => {
+        pinElement.style.transform = 'scale(1.2)';
+      };
+      pinElement.onmouseleave = () => {
+        pinElement.style.transform = 'scale(1)';
+      };
 
-      const marker = new mapboxgl.Marker(el)
+      // Create marker
+      const marker = new mapboxgl.Marker(pinElement)
         .setLngLat([venue.lng, venue.lat])
-        .addTo(map.current);
+        .addTo(map.current!);
 
-      newMarkers.push(marker);
+      // Add click handler for venue info
+      pinElement.onclick = () => {
+        console.log('🏟️ Venue clicked:', venue.name);
+        // TODO: Implement venue info panel
+      };
+
+      // Store marker for cleanup
+      setVenueMarkers(prev => [...prev, marker]);
     });
-
-    setAggregatedVenueMarkers(newMarkers);
   };
 
   // Load aggregated venues when they change
