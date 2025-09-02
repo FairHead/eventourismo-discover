@@ -9,6 +9,8 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import NavigationSystem from './NavigationSystem';
 import ExternalEventsPanel from './ExternalEventsPanel';
+import VenueInfoPanel from './VenueInfoPanel';
+import { useVenues, type Venue } from '@/hooks/useVenues';
 
 interface MapViewProps {
   onPinClick?: (eventId: string) => void;
@@ -82,6 +84,11 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
   const [markers, setMarkers] = useState<mapboxgl.Marker[]>([]);
   const [currentZoom, setCurrentZoom] = useState<number>(12);
   const [clusterMarkers, setClusterMarkers] = useState<mapboxgl.Marker[]>([]);
+  
+  // Venue pins from database
+  const [venueMarkers, setVenueMarkers] = useState<mapboxgl.Marker[]>([]);
+  const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null);
+  const { venues, loading: venuesLoading, fetchVenues } = useVenues();
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const geoWatchIdRef = useRef<number | null>(null);
   const hasCenteredRef = useRef<boolean>(false);
@@ -828,12 +835,15 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     if (isMapboxReady && events.length > 0) {
       console.log('Displaying events, zoom level:', currentZoom, 'events count:', events.length);
       if (currentZoom >= 12) {
+        // Show individual pins when zoomed in
         clearClusterMarkers();
         addEventPins();
+        addVenuePins(); // Add venue pins when zoomed in
         // Show venue pins separately when zoomed in
         updateExternalEventPins(externalEvents);
       } else if (currentZoom >= 10) {
         clearMarkers();
+        clearVenueMarkers(); // Clear venue markers when clustering
         // Clear venue markers when clustering
         Object.values(externalVenueMarkersMapRef.current).forEach(({ marker }) => {
           try { marker.remove(); } catch {}
@@ -843,6 +853,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
         addCombinedClusters();
       } else if (currentZoom >= 8) {
         clearMarkers();
+        clearVenueMarkers(); // Clear venue markers when clustering
         Object.values(externalVenueMarkersMapRef.current).forEach(({ marker }) => {
           try { marker.remove(); } catch {}
         });
@@ -851,6 +862,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
         addCityClusters();
       } else {
         clearMarkers();
+        clearVenueMarkers(); // Clear venue markers when clustering
         Object.values(externalVenueMarkersMapRef.current).forEach(({ marker }) => {
           try { marker.remove(); } catch {}
         });
@@ -860,6 +872,44 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       }
     }
   }, [events, isMapboxReady, currentZoom, externalEvents]);
+
+  // Load venue pins when venues change or map becomes ready
+  useEffect(() => {
+    if (isMapboxReady && venues.length > 0 && currentZoom >= 12) {
+      console.log('Updating venue pins, venues count:', venues.length);
+      addVenuePins();
+    }
+  }, [venues, isMapboxReady, currentZoom]);
+
+  // Fetch venues when map bounds change
+  useEffect(() => {
+    if (!map.current || !isMapboxReady) return;
+    
+    const handleMoveEnd = () => {
+      const bounds = map.current!.getBounds();
+      const bbox = {
+        north: bounds.getNorth(),
+        south: bounds.getSouth(),
+        east: bounds.getEast(),
+        west: bounds.getWest()
+      };
+      
+      // Only fetch venues for current viewport to optimize performance
+      fetchVenues(bbox);
+    };
+
+    // Fetch initial venues for current view
+    handleMoveEnd();
+    
+    // Listen for map movements
+    map.current.on('moveend', handleMoveEnd);
+    
+    return () => {
+      if (map.current) {
+        map.current.off('moveend', handleMoveEnd);
+      }
+    };
+  }, [isMapboxReady, fetchVenues]);
 
   // Auto-update event statuses every minute
   useEffect(() => {
@@ -940,6 +990,82 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       }
     });
     setClusterMarkers([]);
+  };
+
+  const clearVenueMarkers = () => {
+    console.log('Clearing', venueMarkers.length, 'venue markers');
+    venueMarkers.forEach(marker => {
+      try {
+        marker.remove();
+      } catch (error) {
+        console.warn('Error removing venue marker:', error);
+      }
+    });
+    setVenueMarkers([]);
+  };
+
+  // Add venue pins from database
+  const addVenuePins = () => {
+    if (!map.current || !venues.length) return;
+
+    clearVenueMarkers();
+    const newVenueMarkers: mapboxgl.Marker[] = [];
+
+    console.log(`Adding ${venues.length} venue pins to map`);
+
+    venues.forEach((venue) => {
+      // Create marker element for venue
+      const el = document.createElement('div');
+      el.setAttribute('data-venue-id', venue.id);
+      el.style.cursor = 'pointer';
+      el.style.zIndex = '50'; // Lower than event pins
+
+      const inner = document.createElement('div');
+      inner.style.width = '28px';
+      inner.style.height = '28px';
+      inner.style.borderRadius = '50%';
+      inner.style.display = 'flex';
+      inner.style.alignItems = 'center';
+      inner.style.justifyContent = 'center';
+      inner.style.fontSize = '14px';
+      inner.style.userSelect = 'none';
+      inner.style.backgroundColor = '#8b5cf6'; // Purple for venues
+      inner.style.color = 'white';
+      inner.style.border = '2px solid white';
+      inner.style.boxShadow = '0 2px 8px rgba(139, 92, 246, 0.4)';
+      inner.style.transition = 'transform 0.2s ease';
+      inner.textContent = '🏟️';
+
+      el.appendChild(inner);
+
+      // Hover effects
+      el.addEventListener('mouseenter', () => {
+        inner.style.transform = 'scale(1.1)';
+        el.style.zIndex = '60';
+      });
+
+      el.addEventListener('mouseleave', () => {
+        inner.style.transform = 'scale(1)';
+        el.style.zIndex = '50';
+      });
+
+      // Click handler
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        console.log('Venue clicked:', venue.name);
+        setSelectedVenue(venue);
+      });
+
+      // Create and add marker
+      const marker = new mapboxgl.Marker(el)
+        .setLngLat([venue.lng, venue.lat])
+        .addTo(map.current!);
+
+      newVenueMarkers.push(marker);
+    });
+
+    console.log(`Created ${newVenueMarkers.length} venue markers`);
+    setVenueMarkers(newVenueMarkers);
   };
 
   // Update external event pins using HTML markers with clustering like regular events
@@ -2268,7 +2394,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
               <Users className="w-4 h-4 text-primary" />
               <span className="text-muted-foreground">
                 {currentZoom >= 12 
-                  ? `${events.length} Events in der Nähe`
+                  ? `${events.length} Events • ${venues.length} Venues in der Nähe`
                   : `${events.length} Events • Zoom: ${currentZoom.toFixed(1)}`
                 }
               </span>
@@ -2318,6 +2444,19 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
           </div>
         </div>
       )}
+      
+      {/* Venue Info Panel */}
+      {selectedVenue && (
+        <VenueInfoPanel
+          venue={selectedVenue}
+          onClose={() => setSelectedVenue(null)}
+          onNavigate={(coords, name) => {
+            setNavigationDestination({ coords, name });
+            setSelectedVenue(null);
+          }}
+        />
+      )}
+      
       {/* External Events Panel */}
       {showExternalEventsPanel && (
         <ExternalEventsPanel
