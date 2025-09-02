@@ -12,15 +12,17 @@ export async function fetchOsmVenues(params: VenueSearchParams): Promise<VenueRa
 
     const { minLat, minLng, maxLat, maxLng } = bbox;
 
-    // Overpass QL query for clubs and concert venues only
+    // Overpass QL query for discos and music event locations only
     const query = `
       [out:json][timeout:25];
       (
-        node["amenity"~"^(music_venue|concert_hall|nightclub|bar|pub)$"](${minLat},${minLng},${maxLat},${maxLng});
+        node["amenity"~"^(music_venue|concert_hall|nightclub)$"](${minLat},${minLng},${maxLat},${maxLng});
         node["leisure"~"^(dance)$"](${minLat},${minLng},${maxLat},${maxLng});
-        way["amenity"~"^(music_venue|concert_hall|nightclub|bar|pub)$"](${minLat},${minLng},${maxLat},${maxLng});
+        node["club"~"^(music|nightclub)$"](${minLat},${minLng},${maxLat},${maxLng});
+        way["amenity"~"^(music_venue|concert_hall|nightclub)$"](${minLat},${minLng},${maxLat},${maxLng});
         way["leisure"~"^(dance)$"](${minLat},${minLng},${maxLat},${maxLng});
-        relation["amenity"~"^(music_venue|concert_hall|nightclub|bar|pub)$"](${minLat},${minLng},${maxLat},${maxLng});
+        way["club"~"^(music|nightclub)$"](${minLat},${minLng},${maxLat},${maxLng});
+        relation["amenity"~"^(music_venue|concert_hall|nightclub)$"](${minLat},${minLng},${maxLat},${maxLng});
       );
       out center;
     `;
@@ -75,19 +77,19 @@ export async function fetchOsmVenues(params: VenueSearchParams): Promise<VenueRa
         const tourism = element.tags.tourism;
         const shop = element.tags.shop;
         
-        let category = 'nightlife';
+        let category = 'music';
         if (amenity) {
           if (['music_venue', 'concert_hall'].includes(amenity)) {
-            category = 'music';
+            category = 'music_venue';
           } else if (['nightclub'].includes(amenity)) {
             category = 'nightclub';
-          } else if (['bar', 'pub'].includes(amenity)) {
-            category = 'bar';
           }
         } else if (leisure) {
           if (['dance'].includes(leisure)) {
-            category = 'dance';
+            category = 'dance_club';
           }
+        } else if (element.tags.club) {
+          category = element.tags.club === 'nightclub' ? 'nightclub' : 'music_venue';
         }
 
         return {
