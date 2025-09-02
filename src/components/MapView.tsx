@@ -1163,11 +1163,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     lastExternalPinsKeyRef.current = newPinsKey;
   };
 
-  // Refresh external venue pins when data or readiness changes (only when zoomed in)
-  useEffect(() => {
-    if (!map.current || !isMapboxReady || currentZoom < 12) return;
-    updateExternalEventPins(externalEvents);
-  }, [externalEvents, isMapboxReady, currentZoom]);
+  // External venue pins are already handled in the main display effect above
   const addCombinedClusters = () => {
     if (!map.current) return;
 
