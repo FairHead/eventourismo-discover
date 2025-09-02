@@ -830,48 +830,47 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     setRouteDestination(null);
   };
 
-  // Display events on map when data changes or zoom changes
+  // Display on map when zoom or data changes
   useEffect(() => {
-    if (isMapboxReady && events.length > 0) {
-      console.log('Displaying events, zoom level:', currentZoom, 'events count:', events.length);
-      if (currentZoom >= 12) {
-        // Show individual pins when zoomed in
-        clearClusterMarkers();
-        addEventPins();
-        addVenuePins(); // Add venue pins when zoomed in
-        // Show venue pins separately when zoomed in
-        updateExternalEventPins(externalEvents);
-      } else if (currentZoom >= 10) {
-        clearMarkers();
-        clearVenueMarkers(); // Clear venue markers when clustering
-        // Clear venue markers when clustering
-        Object.values(externalVenueMarkersMapRef.current).forEach(({ marker }) => {
-          try { marker.remove(); } catch {}
-        });
-        externalVenueMarkersMapRef.current = {};
-        // Show combined clusters of events and venues (fine-grained)
-        addCombinedClusters();
-      } else if (currentZoom >= 8) {
-        clearMarkers();
-        clearVenueMarkers(); // Clear venue markers when clustering
-        Object.values(externalVenueMarkersMapRef.current).forEach(({ marker }) => {
-          try { marker.remove(); } catch {}
-        });
-        externalVenueMarkersMapRef.current = {};
-        // Show city-level clusters
-        addCityClusters();
-      } else {
-        clearMarkers();
-        clearVenueMarkers(); // Clear venue markers when clustering
-        Object.values(externalVenueMarkersMapRef.current).forEach(({ marker }) => {
-          try { marker.remove(); } catch {}
-        });
-        externalVenueMarkersMapRef.current = {};
-        // Show state/country-level clusters
-        addStateClusters();
-      }
+    if (!isMapboxReady) return;
+
+    console.log('Displaying layers, zoom level:', currentZoom, 'events:', events.length, 'external:', externalEvents.length);
+
+    if (currentZoom >= 12) {
+      // Show individual pins when zoomed in
+      clearClusterMarkers();
+
+      // Event pins only if we have internal events
+      if (events.length > 0) addEventPins(); else clearMarkers();
+
+      // Database venues (if any)
+      addVenuePins();
+
+      // External API venues (Ticketmaster/Eventbrite)
+      updateExternalEventPins(externalEvents);
+    } else if (currentZoom >= 10) {
+      clearMarkers();
+      clearVenueMarkers(); // Clear venue markers when clustering
+      Object.values(externalVenueMarkersMapRef.current).forEach(({ marker }) => { try { marker.remove(); } catch {} });
+      externalVenueMarkersMapRef.current = {};
+      // Show combined clusters of events and venues (fine-grained)
+      addCombinedClusters();
+    } else if (currentZoom >= 8) {
+      clearMarkers();
+      clearVenueMarkers();
+      Object.values(externalVenueMarkersMapRef.current).forEach(({ marker }) => { try { marker.remove(); } catch {} });
+      externalVenueMarkersMapRef.current = {};
+      // Show city-level clusters
+      addCityClusters();
+    } else {
+      clearMarkers();
+      clearVenueMarkers();
+      Object.values(externalVenueMarkersMapRef.current).forEach(({ marker }) => { try { marker.remove(); } catch {} });
+      externalVenueMarkersMapRef.current = {};
+      // Show state/country-level clusters
+      addStateClusters();
     }
-  }, [events, isMapboxReady, currentZoom, externalEvents]);
+  }, [isMapboxReady, currentZoom, events, externalEvents]);
 
   // Load venue pins when venues change or map becomes ready
   useEffect(() => {
