@@ -1,47 +1,46 @@
-import { VenueRaw, EventRaw, SourceId } from '@/types/sources';
-import { Venue, Event } from '@/types/models';
+import { VenueRaw, Venue, SourceId } from '@/types/venues';
 
-// Normalize name for comparison
+/**
+ * Normalize venue name for comparison
+ * Removes diacritics, common venue words, and special characters
+ */
 export function normalizeName(str: string): string {
+  if (!str) return '';
+  
   return str
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
-    .replace(/\b(the|club|venue|theater|theatre|hall|arena|center|centre)\b/g, '') // Remove common venue words
-    .replace(/[^a-z0-9\s]/g, '') // Remove special characters
+    .replace(/\b(club|bar|theater|theatre|venue|hall|arena|center|centre|stadium|kino|cinema|restaurant|cafe|café|gasthaus|hotel)\b/g, '')
+    .replace(/[^\w\s]/g, '') // Remove special characters
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-// Normalize title for event comparison
-export function normalizeTitle(str: string): string {
-  return str
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9\s]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-// Jaro-Winkler similarity algorithm
+/**
+ * Calculate Jaro-Winkler similarity between two strings
+ * Returns a score between 0 and 1 (1 = identical)
+ */
 export function jaroWinkler(s1: string, s2: string): number {
-  if (s1 === s2) return 1.0;
-  if (s1.length === 0 || s2.length === 0) return 0.0;
+  if (s1 === s2) return 1;
+  if (!s1 || !s2) return 0;
 
-  const matchWindow = Math.floor(Math.max(s1.length, s2.length) / 2) - 1;
-  if (matchWindow < 0) return 0.0;
+  const len1 = s1.length;
+  const len2 = s2.length;
+  const matchWindow = Math.floor(Math.max(len1, len2) / 2) - 1;
 
-  const s1Matches = new Array(s1.length).fill(false);
-  const s2Matches = new Array(s2.length).fill(false);
+  if (matchWindow < 0) return 0;
+
+  const s1Matches = new Array(len1).fill(false);
+  const s2Matches = new Array(len2).fill(false);
 
   let matches = 0;
   let transpositions = 0;
 
-  // Identify matches
-  for (let i = 0; i < s1.length; i++) {
+  // Find matches
+  for (let i = 0; i < len1; i++) {
     const start = Math.max(0, i - matchWindow);
-    const end = Math.min(i + matchWindow + 1, s2.length);
+    const end = Math.min(i + matchWindow + 1, len2);
 
     for (let j = start; j < end; j++) {
       if (s2Matches[j] || s1[i] !== s2[j]) continue;
@@ -52,22 +51,22 @@ export function jaroWinkler(s1: string, s2: string): number {
     }
   }
 
-  if (matches === 0) return 0.0;
+  if (matches === 0) return 0;
 
-  // Count transpositions
+  // Find transpositions
   let k = 0;
-  for (let i = 0; i < s1.length; i++) {
+  for (let i = 0; i < len1; i++) {
     if (!s1Matches[i]) continue;
     while (!s2Matches[k]) k++;
     if (s1[i] !== s2[k]) transpositions++;
     k++;
   }
 
-  const jaro = (matches / s1.length + matches / s2.length + (matches - transpositions / 2) / matches) / 3;
+  const jaro = (matches / len1 + matches / len2 + (matches - transpositions / 2) / matches) / 3;
 
-  // Winkler prefix bonus
+  // Jaro-Winkler bonus for common prefix
   let prefix = 0;
-  for (let i = 0; i < Math.min(s1.length, s2.length, 4); i++) {
+  for (let i = 0; i < Math.min(len1, len2, 4); i++) {
     if (s1[i] === s2[i]) prefix++;
     else break;
   }
@@ -75,251 +74,197 @@ export function jaroWinkler(s1: string, s2: string): number {
   return jaro + (0.1 * prefix * (1 - jaro));
 }
 
-// Haversine distance in meters
+/**
+ * Calculate distance between two points using Haversine formula
+ * Returns distance in kilometers
+ */
 export function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371000; // Earth's radius in meters
-  const φ1 = lat1 * Math.PI / 180;
-  const φ2 = lat2 * Math.PI / 180;
-  const Δφ = (lat2 - lat1) * Math.PI / 180;
-  const Δλ = (lng2 - lng1) * Math.PI / 180;
-
-  const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-            Math.cos(φ1) * Math.cos(φ2) *
-            Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const R = 6371; // Earth's radius in kilometers
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
   return R * c;
 }
 
-// Generate deterministic hash
-function generateHash(input: string): string {
-  let hash = 0;
-  if (input.length === 0) return hash.toString();
-  for (let i = 0; i < input.length; i++) {
-    const char = input.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32bit integer
-  }
-  return Math.abs(hash).toString(36);
+/**
+ * Create a hash for venue identification
+ */
+export function hashVenue(venue: VenueRaw): string {
+  const normalized = normalizeName(venue.name);
+  const coords = `${Math.round(venue.lat * 1000)}${Math.round(venue.lng * 1000)}`;
+  const city = venue.city?.toLowerCase().replace(/[^\w]/g, '') || '';
+  return btoa(`${normalized}_${city}_${coords}`).replace(/[+/=]/g, '').slice(0, 12);
 }
 
-// Source priority configuration
-const SOURCE_PRIORITY: Record<SourceId, number> = {
-  ticketmaster: 1,
-  eventbrite: 2
-};
+/**
+ * Check if two venues are likely the same venue
+ */
+export function areSameVenue(v1: VenueRaw, v2: VenueRaw): boolean {
+  // Distance check (75m threshold)
+  const distance = haversine(v1.lat, v1.lng, v2.lat, v2.lng);
+  if (distance > 0.075) return false;
 
-// Merge venues with deduplication
-export function mergeVenues(venuesRaw: VenueRaw[]): { venues: Venue[], sourceToVenueId: Map<string, string> } {
-  const venues: Venue[] = [];
-  const sourceToVenueId = new Map<string, string>();
+  // Name similarity check
+  const norm1 = normalizeName(v1.name);
+  const norm2 = normalizeName(v2.name);
+  const similarity = jaroWinkler(norm1, norm2);
   
-  for (const raw of venuesRaw) {
-    const normalizedName = normalizeName(raw.name);
-    const roundedLat = Math.round(raw.lat * 1000) / 1000;
-    const roundedLng = Math.round(raw.lng * 1000) / 1000;
-    
-    // Find matching existing venue
-    let matchingVenue: Venue | null = null;
-    
-    for (const existing of venues) {
-      const existingNormalizedName = normalizeName(existing.name);
-      const distance = haversine(raw.lat, raw.lng, existing.lat, existing.lng);
-      const nameSimilarity = jaroWinkler(normalizedName, existingNormalizedName);
-      
-      // Matching criteria
-      const geoMatch = distance <= 75; // 75 meters
-      const nameMatch = nameSimilarity >= 0.88;
-      const addressMatch = raw.address && existing.address && 
-        jaroWinkler(raw.address.toLowerCase(), existing.address.toLowerCase()) >= 0.85;
-      
-      if ((geoMatch && nameMatch) || (nameMatch && addressMatch)) {
-        matchingVenue = existing;
-        break;
-      }
-    }
-    
-    if (matchingVenue) {
-      // Merge with existing venue
-      matchingVenue.sources.push({ source: raw.source, externalId: raw.externalId });
-      
-      // Resolve conflicts by priority
-      const existingPriority = Math.min(...matchingVenue.sources.map(s => SOURCE_PRIORITY[s.source]));
-      const newPriority = SOURCE_PRIORITY[raw.source];
-      
-      if (newPriority < existingPriority) {
-        // New source has higher priority, update fields
-        if (raw.phone && !matchingVenue.phone) matchingVenue.phone = raw.phone;
-        if (raw.website && !matchingVenue.website) matchingVenue.website = raw.website;
-        if (raw.address && (!matchingVenue.address || raw.address.length > matchingVenue.address.length)) {
-          matchingVenue.address = raw.address;
-        }
-      }
-      
-      sourceToVenueId.set(`${raw.source}:${raw.externalId}`, matchingVenue.id);
-    } else {
-      // Create new venue
-      const venueId = generateHash(`${normalizedName}-${raw.city || ''}-${roundedLat}-${roundedLng}`);
-      
-      const newVenue: Venue = {
-        id: venueId,
-        name: raw.name,
-        lat: raw.lat,
-        lng: raw.lng,
-        address: raw.address,
-        city: raw.city,
-        country: raw.country,
-        postalCode: raw.postalCode,
-        phone: raw.phone,
-        website: raw.website,
-        sources: [{ source: raw.source, externalId: raw.externalId }],
-        events: []
-      };
-      
-      venues.push(newVenue);
-      sourceToVenueId.set(`${raw.source}:${raw.externalId}`, venueId);
-    }
+  // High similarity threshold for name matching
+  if (similarity < 0.88) return false;
+
+  // Optional: Address similarity for same city
+  if (v1.city && v2.city) {
+    const sameCity = normalizeName(v1.city) === normalizeName(v2.city);
+    if (!sameCity) return false;
   }
-  
-  return { venues, sourceToVenueId };
+
+  return true;
 }
 
-// Floor time to 15-minute intervals for event matching
-function floorTo15Min(date: Date): Date {
-  const minutes = date.getMinutes();
-  const flooredMinutes = Math.floor(minutes / 15) * 15;
-  const result = new Date(date);
-  result.setMinutes(flooredMinutes, 0, 0);
+/**
+ * Merge source arrays, avoiding duplicates by source:id combination
+ */
+export function mergeSources(
+  existingSources: Array<{ source: SourceId; externalId: string }> = [],
+  newSources: Array<{ source: SourceId; externalId: string }> = []
+): Array<{ source: SourceId; externalId: string }> {
+  const sourceMap = new Map<string, { source: SourceId; externalId: string }>();
+  
+  // Add existing sources first
+  existingSources.forEach(source => {
+    if (source?.source && source?.externalId) {
+      sourceMap.set(`${source.source}:${source.externalId}`, source);
+    }
+  });
+  
+  // Add new sources, overwriting if same key
+  newSources.forEach(source => {
+    if (source?.source && source?.externalId) {
+      sourceMap.set(`${source.source}:${source.externalId}`, source);
+    }
+  });
+  
+  return Array.from(sourceMap.values());
+}
+
+/**
+ * Get a better venue name by preferring longer, more descriptive names
+ */
+export function getBetterName(name1: string, name2: string): string {
+  if (!name1) return name2;
+  if (!name2) return name1;
+  
+  // Prefer longer names that are likely more descriptive
+  if (name2.length > name1.length + 5) {
+    return name2;
+  }
+  
+  return name1;
+}
+
+/**
+ * Get better venue data by merging and preferring higher quality sources
+ */
+export function mergeBetterVenueData(existing: VenueRaw, incoming: VenueRaw): VenueRaw {
+  // Source priority: OSM > Eventourismo > Ticketmaster > Eventbrite
+  const sourcePriority: Record<string, number> = {
+    osm: 4,
+    eventourismo: 3,
+    ticketmaster: 2,
+    eventbrite: 1
+  };
+
+  const existingPrio = sourcePriority[existing.source] || 0;
+  const incomingPrio = sourcePriority[incoming.source] || 0;
+
+  // Use higher priority source as base, fill missing fields from lower priority
+  const primary = incomingPrio > existingPrio ? incoming : existing;
+  const secondary = incomingPrio > existingPrio ? existing : incoming;
+
+  return {
+    ...secondary, // Use secondary as base for missing fields
+    ...primary, // Override with primary source data
+    name: getBetterName(primary.name, secondary.name),
+    address: primary.address || secondary.address,
+    city: primary.city || secondary.city,
+    postalCode: primary.postalCode || secondary.postalCode,
+    country: primary.country || secondary.country,
+    website: primary.website || secondary.website,
+    phone: primary.phone || secondary.phone,
+    description: primary.description || secondary.description,
+  };
+}
+
+/**
+ * Deduplicate venues and merge sources
+ * Returns deduplicated venues with merged source information
+ */
+export function dedupeVenues(venues: VenueRaw[]): Venue[] {
+  const result: Venue[] = [];
+  const processed = new Set<number>();
+
+  console.log(`🔄 Deduplicating ${venues.length} venues...`);
+
+  for (let i = 0; i < venues.length; i++) {
+    if (processed.has(i)) continue;
+
+    const currentVenue = venues[i];
+    const duplicates: number[] = [];
+
+    // Find all duplicates for this venue
+    for (let j = i + 1; j < venues.length; j++) {
+      if (processed.has(j)) continue;
+      
+      if (areSameVenue(currentVenue, venues[j])) {
+        duplicates.push(j);
+      }
+    }
+
+    // Mark duplicates as processed
+    duplicates.forEach(idx => processed.add(idx));
+
+    // Merge venue data from all duplicates
+    let mergedVenue = currentVenue;
+    const allSources: Array<{ source: SourceId; externalId: string }> = [{ source: currentVenue.source, externalId: currentVenue.externalId }];
+
+    duplicates.forEach(idx => {
+      const duplicate = venues[idx];
+      mergedVenue = mergeBetterVenueData(mergedVenue, duplicate);
+      allSources.push({ source: duplicate.source, externalId: duplicate.externalId });
+    });
+
+    // Create final venue object
+    const venue: Venue = {
+      id: hashVenue(mergedVenue),
+      name: mergedVenue.name,
+      lat: mergedVenue.lat,
+      lng: mergedVenue.lng,
+      address: mergedVenue.address,
+      city: mergedVenue.city,
+      postalCode: mergedVenue.postalCode,
+      country: mergedVenue.country,
+      category: mergedVenue.category,
+      website: mergedVenue.website,
+      phone: mergedVenue.phone,
+      description: mergedVenue.description,
+      sources: mergeSources([], allSources)
+    };
+
+    result.push(venue);
+
+    if (duplicates.length > 0) {
+      console.log(`📍 Merged venue "${venue.name}" from ${allSources.length} sources:`, 
+        allSources.map(s => s.source).join(', '));
+    }
+  }
+
+  const duplicateCount = venues.length - result.length;
+  console.log(`✅ Deduplication complete: ${result.length} unique venues (removed ${duplicateCount} duplicates)`);
+
   return result;
-}
-
-// Merge events with deduplication
-export function mergeEvents(eventsRaw: EventRaw[], sourceToVenueId: Map<string, string>): Event[] {
-  const events: Event[] = [];
-  
-  for (const raw of eventsRaw) {
-    // Get venue ID
-    const venueKey = raw.venueExternalId ? `${raw.source}:${raw.venueExternalId}` : '';
-    const venueId = sourceToVenueId.get(venueKey);
-    
-    if (!venueId) {
-      console.warn(`No venue found for event ${raw.externalId} from ${raw.source}`);
-      continue;
-    }
-    
-    const normalizedTitle = normalizeTitle(raw.title);
-    const startDate = new Date(raw.startUtc);
-    const flooredStart = floorTo15Min(startDate);
-    
-    // Find matching existing event
-    let matchingEvent: Event | null = null;
-    
-    for (const existing of events) {
-      if (existing.venueId !== venueId) continue;
-      
-      const existingStart = new Date(existing.startUtc);
-      const timeDiff = Math.abs(startDate.getTime() - existingStart.getTime());
-      const titleSimilarity = jaroWinkler(normalizedTitle, normalizeTitle(existing.title));
-      
-      // Check artist overlap
-      const rawArtists = raw.artists || [];
-      const existingArtists = existing.artists || [];
-      const commonArtists = rawArtists.filter(a => 
-        existingArtists.some(ea => jaroWinkler(normalizeName(a), normalizeName(ea)) >= 0.85)
-      );
-      
-      // Matching criteria
-      const timeMatch = timeDiff <= 10 * 60 * 1000; // 10 minutes
-      const titleMatch = titleSimilarity >= 0.90;
-      const artistMatch = normalizedTitle === normalizeTitle(existing.title) && commonArtists.length > 0;
-      
-      if (timeMatch && (titleMatch || artistMatch)) {
-        matchingEvent = existing;
-        break;
-      }
-    }
-    
-    if (matchingEvent) {
-      // Merge with existing event
-      matchingEvent.sources.push({ 
-        source: raw.source, 
-        externalId: raw.externalId, 
-        venueExternalId: raw.venueExternalId 
-      });
-      
-      // Resolve conflicts by priority and status
-      const existingPriority = Math.min(...matchingEvent.sources.map(s => SOURCE_PRIORITY[s.source]));
-      const newPriority = SOURCE_PRIORITY[raw.source];
-      
-      const statusPriority = { live: 1, scheduled: 2, postponed: 3, cancelled: 4 };
-      const existingStatusPrio = statusPriority[matchingEvent.status || 'scheduled'];
-      const newStatusPrio = statusPriority[raw.status || 'scheduled'];
-      
-      // Update status if new one has higher priority
-      if (newStatusPrio < existingStatusPrio) {
-        matchingEvent.status = raw.status;
-      }
-      
-      // Merge arrays
-      if (raw.artists) {
-        const existingArtists = matchingEvent.artists || [];
-        matchingEvent.artists = [...new Set([...existingArtists, ...raw.artists])];
-      }
-      
-      if (raw.genres) {
-        const existingGenres = matchingEvent.genres || [];
-        matchingEvent.genres = [...new Set([...existingGenres, ...raw.genres])];
-      }
-      
-      // Use longer description or higher priority source
-      if (raw.description) {
-        if (!matchingEvent.description || 
-            raw.description.length > matchingEvent.description.length ||
-            newPriority < existingPriority) {
-          matchingEvent.description = raw.description;
-        }
-      }
-      
-      // Prefer HTTPS URLs
-      if (raw.url) {
-        if (!matchingEvent.url || 
-            (raw.url.startsWith('https://') && !matchingEvent.url.startsWith('https://')) ||
-            newPriority < existingPriority) {
-          matchingEvent.url = raw.url;
-        }
-      }
-      
-      // Use image from higher priority source
-      if (raw.imageUrl && (!matchingEvent.imageUrl || newPriority < existingPriority)) {
-        matchingEvent.imageUrl = raw.imageUrl;
-      }
-      
-    } else {
-      // Create new event
-      const eventId = generateHash(`${venueId}-${flooredStart.toISOString()}-${normalizedTitle}`);
-      
-      const newEvent: Event = {
-        id: eventId,
-        title: raw.title,
-        startUtc: raw.startUtc,
-        endUtc: raw.endUtc,
-        status: raw.status,
-        artists: raw.artists,
-        genres: raw.genres,
-        description: raw.description,
-        url: raw.url,
-        imageUrl: raw.imageUrl,
-        sources: [{ 
-          source: raw.source, 
-          externalId: raw.externalId, 
-          venueExternalId: raw.venueExternalId 
-        }],
-        venueId
-      };
-      
-      events.push(newEvent);
-    }
-  }
-  
-  return events;
 }

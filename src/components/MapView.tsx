@@ -10,7 +10,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import NavigationSystem from './NavigationSystem';
 import ExternalEventsPanel from './ExternalEventsPanel';
 import VenueInfoPanel from './VenueInfoPanel';
-import { useVenues, type Venue } from '@/hooks/useVenues';
+import { useVenues, type Venue as DatabaseVenue } from '@/hooks/useVenues';
+import { loadAggregatedVenues, mapBoundsToBBox, isVenueInBounds, getVenueStats } from '@/sources/aggregateVenues';
+import { Venue as AggregatedVenue } from '@/types/venues';
 
 interface MapViewProps {
   onPinClick?: (eventId: string) => void;
@@ -85,10 +87,27 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
   const [currentZoom, setCurrentZoom] = useState<number>(12);
   const [clusterMarkers, setClusterMarkers] = useState<mapboxgl.Marker[]>([]);
   
-  // Venue pins from database
+  // Venue pins from database and aggregated sources
   const [venueMarkers, setVenueMarkers] = useState<mapboxgl.Marker[]>([]);
-  const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null);
+  const [selectedVenue, setSelectedVenue] = useState<DatabaseVenue | null>(null);
   const { venues, loading: venuesLoading, fetchVenues } = useVenues();
+  
+  // Aggregated venue pins from external APIs
+  const [aggregatedVenues, setAggregatedVenues] = useState<AggregatedVenue[]>([]);
+  const [aggregatedVenueMarkers, setAggregatedVenueMarkers] = useState<mapboxgl.Marker[]>([]);
+
+  // Fetch aggregated venues from external APIs
+  const fetchAggregatedVenuesForBounds = async (bounds: mapboxgl.LngLatBounds) => {
+    try {
+      console.log('🚀 Fetching aggregated venues for bounds...');
+      const bbox = mapBoundsToBBox(bounds);
+      const venues = await loadAggregatedVenues({ bbox });
+      setAggregatedVenues(venues);
+      console.log(`📍 Loaded ${venues.length} aggregated venues from APIs`);
+    } catch (error) {
+      console.error('Error fetching aggregated venues:', error);
+    }
+  };
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const geoWatchIdRef = useRef<number | null>(null);
   const hasCenteredRef = useRef<boolean>(false);
@@ -840,7 +859,10 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       // Database venues (if any)
       addVenuePins();
 
-      // External API venues (Ticketmaster/Eventbrite)
+      // External API venues from aggregation system
+      addAggregatedVenuePins();
+
+      // External API venues (Ticketmaster/Eventbrite from existing system)
       updateExternalEventPins(externalEvents);
     } else if (currentZoom >= 10) {
       clearMarkers();
@@ -887,11 +909,25 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
         west: bounds.getWest()
       };
       
-      // Only fetch venues for current viewport to optimize performance
+      // Fetch database venues for current viewport
       fetchVenues(bbox);
+      
+      // Fetch aggregated venues from external APIs
+      fetchAggregatedVenuesForBounds(bounds);
     };
 
     // Fetch initial venues for current view
+    if (map.current) {
+      const bounds = map.current.getBounds();
+      fetchVenues({
+        north: bounds.getNorth(),
+        south: bounds.getSouth(),
+        east: bounds.getEast(),
+        west: bounds.getWest()
+      });
+      // Also fetch aggregated venues
+      fetchAggregatedVenuesForBounds(bounds);
+    }
     handleMoveEnd();
     
     // Listen for map movements
@@ -994,8 +1030,60 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
         console.warn('Error removing venue marker:', error);
       }
     });
-    setVenueMarkers([]);
+  // Add aggregated venue pins from external APIs
+  const addAggregatedVenuePins = () => {
+    if (!map.current || aggregatedVenues.length === 0) return;
+
+    // Clear existing aggregated venue markers
+    aggregatedVenueMarkers.forEach(marker => marker.remove());
+    const newMarkers: mapboxgl.Marker[] = [];
+
+    console.log(`Adding ${aggregatedVenues.length} aggregated venue pins from APIs`);
+
+    aggregatedVenues.forEach((venue) => {
+      const el = document.createElement('div');
+      el.style.cursor = 'pointer';
+      el.style.width = '24px';
+      el.style.height = '24px';
+      el.style.borderRadius = '50%';
+      el.style.display = 'flex';
+      el.style.alignItems = 'center';
+      el.style.justifyContent = 'center';
+      el.style.fontSize = '12px';
+      el.style.color = 'white';
+      el.style.border = '2px solid white';
+      el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
+      
+      // Color based on source priority
+      const primarySource = venue.sources[0]?.source;
+      switch (primarySource) {
+        case 'osm': el.style.backgroundColor = '#4CAF50'; break;
+        case 'ticketmaster': el.style.backgroundColor = '#2196F3'; break;
+        case 'eventbrite': el.style.backgroundColor = '#FF9800'; break;
+        case 'eventourismo': el.style.backgroundColor = '#9C27B0'; break;
+        default: el.style.backgroundColor = '#757575';
+      }
+      
+      el.textContent = venue.category === 'entertainment' ? '🎭' : 
+                      venue.category === 'nightlife' ? '🍺' :
+                      venue.category === 'sports' ? '⚽' : '📍';
+
+      const marker = new mapboxgl.Marker(el)
+        .setLngLat([venue.lng, venue.lat])
+        .addTo(map.current);
+
+      newMarkers.push(marker);
+    });
+
+    setAggregatedVenueMarkers(newMarkers);
   };
+
+  // Load aggregated venues when they change
+  useEffect(() => {
+    if (isMapboxReady && aggregatedVenues.length > 0 && currentZoom >= 12) {
+      addAggregatedVenuePins();
+    }
+  }, [aggregatedVenues, isMapboxReady, currentZoom]);
 
   // Add venue pins from database - always show, even if empty
   const addVenuePins = () => {
