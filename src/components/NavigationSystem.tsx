@@ -122,19 +122,19 @@ const NavigationSystem: React.FC<NavigationSystemProps> = ({
 
     setIsCalculatingRoute(true);
     try {
-      const { data, error } = await supabase.functions.invoke('get-mapbox-token');
-      if (error || !data?.token) throw new Error('Mapbox token not available');
+      const { getMapboxToken } = await import('@/utils/mapboxToken');
+      const token = await getMapboxToken();
 
       // Ensure we always start from user's current location
       const startCoords = userLocation || fromCoords;
       
       // Snap destination to nearest road/address for better routing
-      const snappedDestination = await getNearestAddress(toCoords, data.token);
+      const snappedDestination = await getNearestAddress(toCoords, token);
       
       console.log('Routing from:', startCoords, 'to snapped destination:', snappedDestination);
 
       const response = await fetch(
-        `https://api.mapbox.com/directions/v5/mapbox/walking/${startCoords[0]},${startCoords[1]};${snappedDestination[0]},${snappedDestination[1]}?steps=true&geometries=geojson&access_token=${data.token}&language=de`
+        `https://api.mapbox.com/directions/v5/mapbox/walking/${startCoords[0]},${startCoords[1]};${snappedDestination[0]},${snappedDestination[1]}?steps=true&geometries=geojson&access_token=${token}&language=de`
       );
 
       if (!response.ok) throw new Error('Route calculation failed');

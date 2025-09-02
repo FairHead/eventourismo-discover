@@ -47,10 +47,10 @@ const EventCreate = () => {
 
     const fetchMapboxToken = async () => {
       try {
-        const { data, error } = await supabase.functions.invoke('get-mapbox-token');
-        if (error) throw error;
+        const { getMapboxToken } = await import('@/utils/mapboxToken');
+        const token = await getMapboxToken();
         
-        mapboxgl.accessToken = data.token;
+        mapboxgl.accessToken = token;
         
         map.current = new mapboxgl.Map({
           container: mapContainer.current!,
@@ -63,7 +63,7 @@ const EventCreate = () => {
 
         // Add geocoder for location search
         const geocoder = new (await import('@mapbox/mapbox-gl-geocoder')).default({
-          accessToken: data.token,
+          accessToken: token,
           mapboxgl: mapboxgl,
           placeholder: 'Nach Orten suchen...',
           countries: 'de'
@@ -110,7 +110,7 @@ const EventCreate = () => {
           // Reverse geocode to get address
           try {
             const response = await fetch(
-              `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${data.token}&types=address,poi&country=de&limit=1`
+              `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${token}&types=address,poi&country=de&limit=1`
             );
             const geoData = await response.json();
             

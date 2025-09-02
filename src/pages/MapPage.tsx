@@ -293,11 +293,11 @@ const origin = userLocation;
     
 try {
   // Get Mapbox token
-  const { data: tokenData, error } = await supabase.functions.invoke('get-mapbox-token');
-  if (error) throw error;
+  const { getMapboxToken } = await import('@/utils/mapboxToken');
+  const token = await getMapboxToken();
 
   // Snap destination to nearest road/address for better routing
-  const snappedDestination = await getNearestAddress(destination, tokenData.token);
+  const snappedDestination = await getNearestAddress(destination, token);
   console.log('Routing from user location:', origin, 'to snapped destination:', snappedDestination);
 
   const profile = mode === 'cycling' ? 'cycling' : 
@@ -305,7 +305,7 @@ try {
   
   const response = await fetch(
     `https://api.mapbox.com/directions/v5/mapbox/${profile}/${origin[0]},${origin[1]};${snappedDestination[0]},${snappedDestination[1]}?` +
-    `steps=true&geometries=geojson&access_token=${tokenData.token}&language=de`
+    `steps=true&geometries=geojson&access_token=${token}&language=de`
   );
 
       if (!response.ok) throw new Error('Route calculation failed');

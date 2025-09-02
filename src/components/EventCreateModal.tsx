@@ -68,12 +68,12 @@ const EventCreateModal: React.FC<EventCreateModalProps> = ({ isOpen, onClose, on
       }
 
       try {
-        const { data, error } = await supabase.functions.invoke('get-mapbox-token');
-        if (error) throw error;
+        const { getMapboxToken } = await import('@/utils/mapboxToken');
+        const token = await getMapboxToken();
         
         if (!mounted) return;
         
-        mapboxgl.accessToken = data.token;
+        mapboxgl.accessToken = token;
         console.log('Mapbox token set, initializing map...');
 
         // Get user's current location
@@ -138,7 +138,7 @@ const EventCreateModal: React.FC<EventCreateModalProps> = ({ isOpen, onClose, on
 
         // Add geocoder for location search
         const geocoder = new MapboxGeocoder({
-          accessToken: data.token,
+          accessToken: token,
           mapboxgl: mapboxgl,
           placeholder: 'Nach Orten suchen...',
           countries: 'de'
@@ -192,7 +192,7 @@ const EventCreateModal: React.FC<EventCreateModalProps> = ({ isOpen, onClose, on
           // Reverse geocode to get address
           try {
             const response = await fetch(
-              `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${data.token}&types=address,poi&country=de&limit=1`
+              `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${token}&types=address,poi&country=de&limit=1`
             );
             const geoData = await response.json();
             

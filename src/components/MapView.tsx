@@ -322,22 +322,16 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     fetchFavorites();
   }, [user]);
 
-  // Fetch Mapbox token from Edge Function
+  // Fetch Mapbox token from central manager
   useEffect(() => {
     const fetchMapboxToken = async () => {
       try {
-        const { data, error } = await supabase.functions.invoke('get-mapbox-token');
-        
-        if (error) throw error;
-        
-        if (data?.token) {
-          setMapboxToken(data.token);
-        } else {
-          setTokenError('Mapbox Token nicht gefunden');
-        }
+        const { getMapboxToken } = await import('@/utils/mapboxToken');
+        const token = await getMapboxToken();
+        setMapboxToken(token);
       } catch (error) {
         console.error('Error fetching Mapbox token:', error);
-        setTokenError('Fehler beim Laden des Mapbox Tokens');
+        setTokenError('Mapbox Token konnte nicht geladen werden. Bitte prüfen Sie die Konfiguration.');
       }
     };
 

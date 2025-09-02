@@ -178,12 +178,12 @@ const Search: React.FC = () => {
 
   const searchLocations = async (query: string) => {
     try {
-      const { data: tokenData, error } = await supabase.functions.invoke('get-mapbox-token');
-      if (error) throw error;
+      const { getMapboxToken } = await import('@/utils/mapboxToken');
+      const token = await getMapboxToken();
 
       const response = await fetch(
         `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?` +
-        `country=DE&types=place,locality,neighborhood,address&language=de&limit=5&access_token=${tokenData.token}`
+        `country=DE&types=place,locality,neighborhood,address&language=de&limit=5&access_token=${token}`
       );
 
       if (!response.ok) throw new Error('Geocoding failed');
