@@ -39,6 +39,59 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Ensure a system user exists in auth and public.users, return its id
+async function ensureSystemUserId(supabase: any): Promise<string> {
+  const email = Deno.env.get('SYSTEM_INGEST_EMAIL') || 'system@ingest.local';
+
+  // Try to find existing public user first
+  const { data: existing, error: selectErr } = await supabase
+    .from('users')
+    .select('id')
+    .eq('email', email)
+    .maybeSingle();
+  if (existing?.id) return existing.id as string;
+
+  // Create auth user via Admin API
+  const password = (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`);
+  const { data: created, error: createErr } = await supabase.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { system: true }
+  });
+
+  if (createErr) {
+    // If already exists, try to list users and find by email
+    const { data: list, error: listErr } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    if (listErr) throw createErr;
+    const found = list.users.find((u: any) => (u.email || '').toLowerCase() === email);
+    if (!found) throw createErr;
+    // Ensure public.users row
+    const { error: insertErr } = await supabase.from('users').insert({
+      id: found.id,
+      email,
+      display_name: 'System Ingestion',
+      role: 'admin'
+    });
+    if (insertErr && insertErr.code !== '23505') throw insertErr;
+    return found.id as string;
+  }
+
+  const newId = created?.user?.id as string;
+  if (!newId) throw new Error('Failed to create system user');
+  const { error: insertErr } = await supabase.from('users').insert({
+    id: newId,
+    email,
+    display_name: 'System Ingestion',
+    role: 'admin'
+  });
+  if (insertErr && insertErr.code !== '23505') throw insertErr;
+  return newId;
+}
+
+// Will be set at runtime in the handler
+let SYSTEM_USER_ID: string = '';
+
 async function fetchOverpassData(bbox: string, endpointIndex = 0): Promise<OSMResponse> {
   const query = `[out:json][timeout:60];
   (
@@ -115,7 +168,7 @@ function osmElementToVenue(element: OSMElement) {
     website: tags.website || tags.url || null,
     categories: categories.length > 0 ? categories : null,
     sources: [{ src: 'osm', id: `${element.type}/${element.id}` }],
-    created_by: '00000000-0000-0000-0000-000000000000' // System-generated venue
+    created_by: SYSTEM_USER_ID
   };
 }
 
@@ -191,6 +244,8 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+    // Ensure system user id for created_by FK
+    SYSTEM_USER_ID = await ensureSystemUserId(supabase);
     
     let totalSeen = 0;
     let totalInserted = 0;

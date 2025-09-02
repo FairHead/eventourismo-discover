@@ -17,6 +17,44 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Ensure a system user exists in auth and public.users, return its id
+async function ensureSystemUserId(supabase: any): Promise<string> {
+  const email = Deno.env.get('SYSTEM_INGEST_EMAIL') || 'system@ingest.local';
+
+  const { data: existing } = await supabase
+    .from('users')
+    .select('id')
+    .eq('email', email)
+    .maybeSingle();
+  if (existing?.id) return existing.id as string;
+
+  const password = (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`);
+  const { data: created, error: createErr } = await supabase.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { system: true }
+  });
+
+  if (createErr) {
+    const { data: list, error: listErr } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    if (listErr) throw createErr;
+    const found = list.users.find((u: any) => (u.email || '').toLowerCase() === email);
+    if (!found) throw createErr;
+    const { error: insertErr } = await supabase.from('users').insert({ id: found.id, email, display_name: 'System Ingestion', role: 'admin' });
+    if (insertErr && insertErr.code !== '23505') throw insertErr;
+    return found.id as string;
+  }
+
+  const newId = created?.user?.id as string;
+  if (!newId) throw new Error('Failed to create system user');
+  const { error: insertErr } = await supabase.from('users').insert({ id: newId, email, display_name: 'System Ingestion', role: 'admin' });
+  if (insertErr && insertErr.code !== '23505') throw insertErr;
+  return newId;
+}
+
+let SYSTEM_USER_ID: string = '';
+
 // Simple geohash encoder for Ticketmaster API
 function encodeGeohash(lat: number, lng: number, precision = 9): string {
   const base32 = '0123456789bcdefghjkmnpqrstuvwxyz';
@@ -141,7 +179,7 @@ function ticketmasterVenueToVenue(tmVenue: TicketmasterVenue) {
     website: tmVenue.url || null,
     categories: ['music_venue'], // Ticketmaster venues are typically music venues
     sources: [{ src: 'tm', id: tmVenue.id }],
-    created_by: '00000000-0000-0000-0000-000000000000' // System-generated venue
+    created_by: SYSTEM_USER_ID
   };
 }
 
@@ -218,6 +256,8 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const apiKey = Deno.env.get('TM_API_KEY') || Deno.env.get('TICKETMASTER_API_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+    // Ensure system user id for created_by FK
+    SYSTEM_USER_ID = await ensureSystemUserId(supabase);
     
     let totalSeen = 0;
     let totalInserted = 0;
