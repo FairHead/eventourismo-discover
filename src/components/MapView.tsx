@@ -1003,9 +1003,9 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     setVenueMarkers([]);
   };
 
-  // Add venue pins from database
+  // Add venue pins from database - always show, even if empty
   const addVenuePins = () => {
-    if (!map.current || !venues.length) return;
+    if (!map.current) return;
 
     clearVenueMarkers();
     const newVenueMarkers: mapboxgl.Marker[] = [];
@@ -1018,40 +1018,90 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       el.setAttribute('data-venue-id', venue.id);
       el.style.cursor = 'pointer';
       el.style.zIndex = '50'; // Lower than event pins
+      el.style.position = 'relative';
 
       const inner = document.createElement('div');
-      inner.style.width = '28px';
-      inner.style.height = '28px';
+      inner.style.width = '32px';
+      inner.style.height = '32px';
       inner.style.borderRadius = '50%';
       inner.style.display = 'flex';
       inner.style.alignItems = 'center';
       inner.style.justifyContent = 'center';
-      inner.style.fontSize = '14px';
+      inner.style.fontSize = '16px';
       inner.style.userSelect = 'none';
       inner.style.backgroundColor = '#8b5cf6'; // Purple for venues
       inner.style.color = 'white';
       inner.style.border = '2px solid white';
       inner.style.boxShadow = '0 2px 8px rgba(139, 92, 246, 0.4)';
-      inner.style.transition = 'transform 0.2s ease';
-      inner.textContent = '🏟️';
-
+      inner.style.transition = 'all 0.2s ease';
+      
+      // Different icons based on venue categories
+      const categories = venue.categories || [];
+      let icon = '🏟️'; // Default stadium
+      if (categories.includes('music_venue') || categories.includes('nightclub')) icon = '🎵';
+      else if (categories.includes('theatre') || categories.includes('arts_centre')) icon = '🎭';
+      else if (categories.includes('bar') || categories.includes('live_music')) icon = '🍺';
+      else if (categories.includes('stadium')) icon = '🏟️';
+      else if (categories.includes('event_space')) icon = '📍';
+      
+      inner.textContent = icon;
       el.appendChild(inner);
 
-      // Hover effects
+      // Create info tooltip
+      const tooltip = document.createElement('div');
+      tooltip.className = 'venue-tooltip';
+      tooltip.style.position = 'absolute';
+      tooltip.style.bottom = '40px';
+      tooltip.style.left = '50%';
+      tooltip.style.transform = 'translateX(-50%)';
+      tooltip.style.backgroundColor = 'rgba(0, 0, 0, 0.9)';
+      tooltip.style.color = 'white';
+      tooltip.style.padding = '8px 12px';
+      tooltip.style.borderRadius = '8px';
+      tooltip.style.fontSize = '12px';
+      tooltip.style.whiteSpace = 'nowrap';
+      tooltip.style.visibility = 'hidden';
+      tooltip.style.opacity = '0';
+      tooltip.style.transition = 'all 0.2s ease';
+      tooltip.style.zIndex = '1000';
+      tooltip.style.pointerEvents = 'none';
+      
+      // Tooltip content with venue info
+      const venueName = venue.name || 'Unbekannte Venue';
+      const venueCity = venue.city || '';
+      const venueSources = venue.sources ? 
+        venue.sources.map((s: any) => s.src?.toUpperCase()).join(', ') : '';
+      
+      tooltip.innerHTML = `
+        <div style="font-weight: bold; margin-bottom: 2px;">${venueName}</div>
+        ${venueCity ? `<div style="margin-bottom: 2px;">📍 ${venueCity}</div>` : ''}
+        ${categories.length > 0 ? `<div style="margin-bottom: 2px;">🏷️ ${categories.slice(0, 2).join(', ')}</div>` : ''}
+        ${venueSources ? `<div style="font-size: 10px; opacity: 0.8;">📊 ${venueSources}</div>` : ''}
+      `;
+      
+      el.appendChild(tooltip);
+
+      // Hover effects with tooltip
       el.addEventListener('mouseenter', () => {
-        inner.style.transform = 'scale(1.1)';
+        inner.style.transform = 'scale(1.2)';
+        inner.style.boxShadow = '0 4px 12px rgba(139, 92, 246, 0.6)';
         el.style.zIndex = '60';
+        tooltip.style.visibility = 'visible';
+        tooltip.style.opacity = '1';
       });
 
       el.addEventListener('mouseleave', () => {
         inner.style.transform = 'scale(1)';
+        inner.style.boxShadow = '0 2px 8px rgba(139, 92, 246, 0.4)';
         el.style.zIndex = '50';
+        tooltip.style.visibility = 'hidden';
+        tooltip.style.opacity = '0';
       });
 
       // Click handler
       el.addEventListener('click', (e) => {
         e.stopPropagation();
-        console.log('Venue clicked:', venue.name);
+        console.log('Venue clicked:', venue.name, 'Categories:', categories, 'City:', venue.city);
         setSelectedVenue(venue);
       });
 
@@ -1065,6 +1115,11 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
 
     console.log(`Created ${newVenueMarkers.length} venue markers`);
     setVenueMarkers(newVenueMarkers);
+
+    // Also show empty venues message if no venues but map is ready
+    if (venues.length === 0 && map.current) {
+      console.log('No venues in database - consider running venue ingestion functions');
+    }
   };
 
   // Update external event pins using HTML markers with clustering like regular events
@@ -2393,8 +2448,8 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
               <Users className="w-4 h-4 text-primary" />
               <span className="text-muted-foreground">
                 {currentZoom >= 12 
-                  ? `${events.length} Events • ${venues.length} Venues in der Nähe`
-                  : `${events.length} Events • Zoom: ${currentZoom.toFixed(1)}`
+                  ? `${events.length} Events • ${venues.length} Venues • ${externalEvents.length} API-Venues`
+                  : `${events.length} Events • Zoom rein für Details`
                 }
               </span>
             </div>
