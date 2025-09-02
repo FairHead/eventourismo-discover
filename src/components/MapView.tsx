@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import NavigationSystem from './NavigationSystem';
 import ExternalEventsPanel from './ExternalEventsPanel';
 import VenueInfoPanel from './VenueInfoPanel';
+import AggregatedVenueInfoPanel from './AggregatedVenueInfoPanel';
 import { useVenues, type Venue as DatabaseVenue } from '@/hooks/useVenues';
 import { loadAggregatedVenues, mapBoundsToBBox, isVenueInBounds, getVenueStats } from '@/sources/aggregateVenues';
 import { Venue as AggregatedVenue } from '@/types/venues';
@@ -95,6 +96,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
   // Aggregated venue pins from external APIs
   const [aggregatedVenues, setAggregatedVenues] = useState<AggregatedVenue[]>([]);
   const [aggregatedVenueMarkers, setAggregatedVenueMarkers] = useState<mapboxgl.Marker[]>([]);
+  const [selectedAggregatedVenue, setSelectedAggregatedVenue] = useState<AggregatedVenue | null>(null);
 
   // Fetch aggregated venues from external APIs
   const fetchAggregatedVenuesForBounds = async (bounds: mapboxgl.LngLatBounds) => {
@@ -1075,15 +1077,28 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     // Get current zoom level for clustering decisions
     const currentZoom = map.current.getZoom();
     const shouldCluster = currentZoom < 12; // Cluster when zoomed out
+
+    // Ensure one pin per unique venue (by id, then by name+city+rounded coords)
+    const byId = new Map(aggregatedVenues.map(v => [v.id, v]));
+    let venuesToRender = Array.from(byId.values());
+    if (venuesToRender.length !== aggregatedVenues.length) {
+      console.log(`🧹 Deduped venues by id: ${aggregatedVenues.length} -> ${venuesToRender.length}`);
+    }
+    const byKey = new Map<string, AggregatedVenue>();
+    venuesToRender.forEach(v => {
+      const key = `${(v.name || '').toLowerCase().trim()}|${(v.city || '').toLowerCase().trim()}|${v.lat.toFixed(4)}|${v.lng.toFixed(4)}`;
+      if (!byKey.has(key)) byKey.set(key, v);
+    });
+    venuesToRender = Array.from(byKey.values());
     
-    console.log(`🎯 Adding ${aggregatedVenues.length} venue pins to map (zoom: ${currentZoom.toFixed(1)}, clustering: ${shouldCluster})`);
+    console.log(`🎯 Adding ${venuesToRender.length} venue pins to map (zoom: ${currentZoom.toFixed(1)}, clustering: ${shouldCluster})`);
     
     if (shouldCluster) {
       // Simple grid-based clustering for performance
       const clusterSize = 0.01; // ~1km grid
       const clusters = new Map<string, { venues: typeof aggregatedVenues, lat: number, lng: number }>();
       
-      aggregatedVenues.forEach((venue) => {
+      venuesToRender.forEach((venue) => {
         const gridLat = Math.floor(venue.lat / clusterSize) * clusterSize;
         const gridLng = Math.floor(venue.lng / clusterSize) * clusterSize;
         const key = `${gridLat}_${gridLng}`;
@@ -1137,7 +1152,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
           if (venueCount === 1) {
             const venue = cluster.venues[0];
             console.log('🏟️ Venue clicked:', venue.name, 'from sources:', venue.sources.map(s => s.source).join(', '));
-            // TODO: Implement venue info panel
+            setSelectedAggregatedVenue(venue);
           } else {
             // Zoom in to show individual venues
             map.current?.flyTo({
@@ -1159,7 +1174,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
       console.log(`📍 Created ${clusters.size} clusters from ${aggregatedVenues.length} venues`);
     } else {
       // Show individual venues when zoomed in
-      aggregatedVenues.forEach((venue) => {
+      venuesToRender.forEach((venue) => {
         // Create marker with inner content to avoid overriding Mapbox transforms
         const el = document.createElement('div');
         el.setAttribute('data-venue-id', venue.id);
@@ -1197,7 +1212,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
         // Add click handler for venue info
         el.addEventListener('click', () => {
           console.log('🏟️ Venue clicked:', venue.name, 'from sources:', venue.sources.map(s => s.source).join(', '));
-          // TODO: Implement venue info panel
+          setSelectedAggregatedVenue(venue);
         });
 
         // Create marker
@@ -2736,7 +2751,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
         </div>
       )}
       
-      {/* Venue Info Panel */}
+      {/* Venue Info Panel (database) */}
       {selectedVenue && (
         <VenueInfoPanel
           venue={selectedVenue}
@@ -2744,6 +2759,18 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
           onNavigate={(coords, name) => {
             setNavigationDestination({ coords, name });
             setSelectedVenue(null);
+          }}
+        />
+      )}
+
+      {/* Venue Info Panel (aggregated APIs) */}
+      {selectedAggregatedVenue && (
+        <AggregatedVenueInfoPanel
+          venue={selectedAggregatedVenue}
+          onClose={() => setSelectedAggregatedVenue(null)}
+          onNavigate={(coords, name) => {
+            setNavigationDestination({ coords, name });
+            setSelectedAggregatedVenue(null);
           }}
         />
       )}
