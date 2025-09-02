@@ -8,3 +8,12 @@ verify_jwt = false
 
 [functions.fetch-external-events]
 verify_jwt = false
+
+[functions.osm_ingest]
+verify_jwt = false
+
+[functions.tm_ingest]
+verify_jwt = false
+
+[functions.eb_ingest]
+verify_jwt = false
