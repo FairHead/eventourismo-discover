@@ -114,7 +114,8 @@ function osmElementToVenue(element: OSMElement) {
     address: Object.keys(addressParts).length > 0 ? JSON.stringify(addressParts) : null,
     website: tags.website || tags.url || null,
     categories: categories.length > 0 ? categories : null,
-    sources: [{ src: 'osm', id: `${element.type}/${element.id}` }]
+    sources: [{ src: 'osm', id: `${element.type}/${element.id}` }],
+    created_by: '00000000-0000-0000-0000-000000000000' // System-generated venue
   };
 }
 

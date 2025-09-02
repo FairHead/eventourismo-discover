@@ -140,7 +140,8 @@ function ticketmasterVenueToVenue(tmVenue: TicketmasterVenue) {
     address: Object.keys(addressParts).length > 0 ? JSON.stringify(addressParts) : null,
     website: tmVenue.url || null,
     categories: ['music_venue'], // Ticketmaster venues are typically music venues
-    sources: [{ src: 'tm', id: tmVenue.id }]
+    sources: [{ src: 'tm', id: tmVenue.id }],
+    created_by: '00000000-0000-0000-0000-000000000000' // System-generated venue
   };
 }
 
