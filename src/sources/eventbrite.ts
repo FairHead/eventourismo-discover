@@ -140,9 +140,25 @@ export class EventbriteSource implements EventSource {
   }
   
   async fetchVenues(params: { bbox?: BBox; updatedSince?: string }): Promise<VenueRaw[]> {
-    // Eventbrite venues are typically extracted from events
-    // We could implement a separate venue search if needed
-    return [];
+    // Extract venues from events since Eventbrite doesn't have a separate venue API
+    const events = await this.fetchEvents({ ...params, timeRange: undefined });
+    const venuesMap = new Map<string, VenueRaw>();
+    
+    for (const event of events) {
+      if (!event.venueExternalId) continue;
+      
+      const venueKey = `${event.source}:${event.venueExternalId}`;
+      if (venuesMap.has(venueKey)) continue;
+      
+      // We need to fetch the event again to get venue details
+      // For now, we'll extract from the cached event data
+      const venue = await this.extractVenueFromEvent(event.venueExternalId);
+      if (venue) {
+        venuesMap.set(venueKey, venue);
+      }
+    }
+    
+    return Array.from(venuesMap.values());
   }
   
   async fetchEvents(params: { bbox?: BBox; timeRange?: TimeRange; updatedSince?: string }): Promise<EventRaw[]> {
@@ -210,6 +226,48 @@ export class EventbriteSource implements EventSource {
     }
   }
   
+  private async extractVenueFromEvent(venueId: string): Promise<VenueRaw | null> {
+    if (!this.token) return null;
+    
+    const url = `${this.baseUrl}/venues/${venueId}/`;
+    const headers = {
+      'Authorization': `Bearer ${this.token}`,
+      'Content-Type': 'application/json'
+    };
+    
+    try {
+      const venue: EventbriteVenue = await fetchJson(url, { headers });
+      
+      if (!venue.latitude || !venue.longitude) {
+        return null;
+      }
+      
+      // Build venue address
+      let address = '';
+      if (venue.address?.address_1) {
+        address = venue.address.address_1;
+        if (venue.address.address_2) {
+          address += `, ${venue.address.address_2}`;
+        }
+      }
+      
+      return {
+        source: 'eventbrite',
+        externalId: venue.id,
+        name: venue.name,
+        lat: parseFloat(venue.latitude),
+        lng: parseFloat(venue.longitude),
+        address: address || undefined,
+        city: venue.address?.city,
+        country: venue.address?.country_name,
+        postalCode: venue.address?.postal_code
+      };
+    } catch (error) {
+      console.warn(`Could not fetch venue ${venueId} from Eventbrite:`, error);
+      return null;
+    }
+  }
+
   private mapEventsResponse(data: EventbriteResponse): EventRaw[] {
     const events: EventRaw[] = [];
     
@@ -233,15 +291,6 @@ export class EventbriteSource implements EventSource {
       // Get artists (Eventbrite doesn't have explicit artists, use organizer)
       const artists: string[] = [];
       if (event.organizer?.name) artists.push(event.organizer.name);
-      
-      // Build venue address
-      let address = '';
-      if (venue.address?.address_1) {
-        address = venue.address.address_1;
-        if (venue.address.address_2) {
-          address += `, ${venue.address.address_2}`;
-        }
-      }
       
       const eventRaw: EventRaw = {
         source: 'eventbrite',
