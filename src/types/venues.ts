@@ -32,4 +32,5 @@ export interface VenueSearchParams {
   bbox?: BBox;
   updatedSince?: string;
   limit?: number;
+  maxResults?: number; // Maximum results per source to prevent overloading
 }

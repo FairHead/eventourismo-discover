@@ -99,9 +99,27 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
   // Fetch aggregated venues from external APIs
   const fetchAggregatedVenuesForBounds = async (bounds: mapboxgl.LngLatBounds) => {
     try {
-      console.log('🚀 Fetching aggregated venues for bounds...');
+      const zoom = map.current?.getZoom() || 10;
+      
+      // Don't load venues when zoomed out too much to prevent performance issues
+      if (zoom < 8) {
+        console.log('🗺️ Skipping venue load - zoom too low:', zoom.toFixed(1));
+        return;
+      }
+      
+      // Calculate area size to limit requests for large areas
+      const sw = bounds.getSouthWest();
+      const ne = bounds.getNorthEast();
+      const area = (ne.lat - sw.lat) * (ne.lng - sw.lng);
+      
+      if (area > 2.0) { // Roughly > 100km x 100km
+        console.log('🗺️ Skipping venue load - area too large:', area.toFixed(2));
+        return;
+      }
+      
+      console.log('🚀 Fetching aggregated venues for bounds (zoom:', zoom.toFixed(1), ', area:', area.toFixed(2), ')');
       const bbox = mapBoundsToBBox(bounds);
-      const venues = await loadAggregatedVenues({ bbox });
+      const venues = await loadAggregatedVenues({ bbox, maxResults: 100 }); // Limit results per source
       setAggregatedVenues(venues);
       console.log(`📍 Loaded ${venues.length} aggregated venues from APIs`);
     } catch (error) {
@@ -1046,7 +1064,7 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     setAggregatedVenueMarkers([]);
   };
 
-  // Add aggregated venue pins from external APIs
+  // Add aggregated venue pins with clustering support
   const addAggregatedVenuePins = () => {
     if (!map.current || aggregatedVenues.length === 0) return;
 
@@ -1054,67 +1072,173 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     clearAggregatedVenueMarkers();
     const newMarkers: mapboxgl.Marker[] = [];
 
-    console.log(`🎯 Adding ${aggregatedVenues.length} venue pins to map`);
+    // Get current zoom level for clustering decisions
+    const currentZoom = map.current.getZoom();
+    const shouldCluster = currentZoom < 12; // Cluster when zoomed out
     
-    aggregatedVenues.forEach((venue) => {
-      // Create marker with inner content to avoid overriding Mapbox transforms
-      const el = document.createElement('div');
-      el.setAttribute('data-venue-id', venue.id);
-      el.style.cursor = 'pointer';
-      el.style.zIndex = '50';
-
-      const inner = document.createElement('div');
-      inner.style.width = '24px';
-      inner.style.height = '24px';
-      inner.style.borderRadius = '50%';
-      inner.style.display = 'flex';
-      inner.style.alignItems = 'center';
-      inner.style.justifyContent = 'center';
-      inner.style.fontSize = '12px';
-      inner.style.userSelect = 'none';
-      inner.style.backgroundColor = 'hsl(var(--primary))';
-      inner.style.border = '2px solid white';
-      inner.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
-      inner.style.transition = 'transform 0.2s ease';
-      inner.style.transformOrigin = 'center center';
-      inner.style.willChange = 'transform';
-      inner.textContent = '🏢';
-
-      el.appendChild(inner);
-
-      // Add hover effect
-      el.addEventListener('mouseenter', () => {
-        inner.style.transform = 'scale(1.2)';
-      });
+    console.log(`🎯 Adding ${aggregatedVenues.length} venue pins to map (zoom: ${currentZoom.toFixed(1)}, clustering: ${shouldCluster})`);
+    
+    if (shouldCluster) {
+      // Simple grid-based clustering for performance
+      const clusterSize = 0.01; // ~1km grid
+      const clusters = new Map<string, { venues: typeof aggregatedVenues, lat: number, lng: number }>();
       
-      el.addEventListener('mouseleave', () => {
-        inner.style.transform = 'scale(1)';
+      aggregatedVenues.forEach((venue) => {
+        const gridLat = Math.floor(venue.lat / clusterSize) * clusterSize;
+        const gridLng = Math.floor(venue.lng / clusterSize) * clusterSize;
+        const key = `${gridLat}_${gridLng}`;
+        
+        if (!clusters.has(key)) {
+          clusters.set(key, { venues: [], lat: gridLat + clusterSize/2, lng: gridLng + clusterSize/2 });
+        }
+        clusters.get(key)!.venues.push(venue);
       });
 
-      // Add click handler for venue info
-      el.addEventListener('click', () => {
-        console.log('🏟️ Venue clicked:', venue.name, 'from sources:', venue.sources.map(s => s.source).join(', '));
-        // TODO: Implement venue info panel
+      // Create cluster markers
+      clusters.forEach((cluster, key) => {
+        const venueCount = cluster.venues.length;
+        
+        // Create cluster marker element
+        const el = document.createElement('div');
+        el.style.cursor = 'pointer';
+        el.style.zIndex = '50';
+
+        const inner = document.createElement('div');
+        inner.style.width = venueCount > 10 ? '40px' : venueCount > 5 ? '32px' : '24px';
+        inner.style.height = venueCount > 10 ? '40px' : venueCount > 5 ? '32px' : '24px';
+        inner.style.borderRadius = '50%';
+        inner.style.display = 'flex';
+        inner.style.alignItems = 'center';
+        inner.style.justifyContent = 'center';
+        inner.style.fontSize = venueCount > 10 ? '14px' : '12px';
+        inner.style.fontWeight = 'bold';
+        inner.style.color = 'white';
+        inner.style.userSelect = 'none';
+        inner.style.backgroundColor = venueCount === 1 ? 'hsl(var(--primary))' : 'hsl(var(--secondary))';
+        inner.style.border = '2px solid white';
+        inner.style.boxShadow = '0 2px 10px rgba(0,0,0,0.4)';
+        inner.style.transition = 'all 0.2s ease';
+        inner.style.transformOrigin = 'center center';
+        inner.textContent = venueCount === 1 ? '🏢' : venueCount.toString();
+
+        el.appendChild(inner);
+
+        // Add hover effect
+        el.addEventListener('mouseenter', () => {
+          inner.style.transform = 'scale(1.1)';
+        });
+        
+        el.addEventListener('mouseleave', () => {
+          inner.style.transform = 'scale(1)';
+        });
+
+        // Add click handler
+        el.addEventListener('click', () => {
+          if (venueCount === 1) {
+            const venue = cluster.venues[0];
+            console.log('🏟️ Venue clicked:', venue.name, 'from sources:', venue.sources.map(s => s.source).join(', '));
+            // TODO: Implement venue info panel
+          } else {
+            // Zoom in to show individual venues
+            map.current?.flyTo({
+              center: [cluster.lng, cluster.lat],
+              zoom: Math.min(currentZoom + 2, 16),
+              duration: 1000
+            });
+          }
+        });
+
+        // Create marker
+        const marker = new mapboxgl.Marker(el)
+          .setLngLat([cluster.lng, cluster.lat])
+          .addTo(map.current!);
+
+        newMarkers.push(marker);
       });
 
-      // Create marker
-      const marker = new mapboxgl.Marker(el)
-        .setLngLat([venue.lng, venue.lat])
-        .addTo(map.current!);
+      console.log(`📍 Created ${clusters.size} clusters from ${aggregatedVenues.length} venues`);
+    } else {
+      // Show individual venues when zoomed in
+      aggregatedVenues.forEach((venue) => {
+        // Create marker with inner content to avoid overriding Mapbox transforms
+        const el = document.createElement('div');
+        el.setAttribute('data-venue-id', venue.id);
+        el.style.cursor = 'pointer';
+        el.style.zIndex = '50';
 
-      newMarkers.push(marker);
-    });
+        const inner = document.createElement('div');
+        inner.style.width = '24px';
+        inner.style.height = '24px';
+        inner.style.borderRadius = '50%';
+        inner.style.display = 'flex';
+        inner.style.alignItems = 'center';
+        inner.style.justifyContent = 'center';
+        inner.style.fontSize = '12px';
+        inner.style.userSelect = 'none';
+        inner.style.backgroundColor = 'hsl(var(--primary))';
+        inner.style.border = '2px solid white';
+        inner.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
+        inner.style.transition = 'transform 0.2s ease';
+        inner.style.transformOrigin = 'center center';
+        inner.style.willChange = 'transform';
+        inner.textContent = '🏢';
+
+        el.appendChild(inner);
+
+        // Add hover effect
+        el.addEventListener('mouseenter', () => {
+          inner.style.transform = 'scale(1.2)';
+        });
+        
+        el.addEventListener('mouseleave', () => {
+          inner.style.transform = 'scale(1)';
+        });
+
+        // Add click handler for venue info
+        el.addEventListener('click', () => {
+          console.log('🏟️ Venue clicked:', venue.name, 'from sources:', venue.sources.map(s => s.source).join(', '));
+          // TODO: Implement venue info panel
+        });
+
+        // Create marker
+        const marker = new mapboxgl.Marker(el)
+          .setLngLat([venue.lng, venue.lat])
+          .addTo(map.current!);
+
+        newMarkers.push(marker);
+      });
+
+      console.log(`📍 Created ${newMarkers.length} individual venue markers`);
+    }
 
     setAggregatedVenueMarkers(newMarkers);
-    console.log(`Created ${newMarkers.length} venue markers`);
   };
 
   // Load aggregated venues when they change
   useEffect(() => {
-    if (isMapboxReady && aggregatedVenues.length > 0 && currentZoom >= 12) {
+    if (isMapboxReady && aggregatedVenues.length > 0) {
       addAggregatedVenuePins();
     }
-  }, [aggregatedVenues, isMapboxReady, currentZoom]);
+  }, [aggregatedVenues, isMapboxReady]);
+
+  // Re-render venue pins on zoom change for clustering
+  useEffect(() => {
+    if (!map.current || !isMapboxReady) return;
+
+    const handleZoomEnd = () => {
+      if (aggregatedVenues.length > 0) {
+        addAggregatedVenuePins();
+      }
+    };
+
+    map.current.on('zoomend', handleZoomEnd);
+    
+    return () => {
+      if (map.current) {
+        map.current.off('zoomend', handleZoomEnd);
+      }
+    };
+  }, [aggregatedVenues, isMapboxReady]);
 
   // Add venue pins from database - always show, even if empty
   const addVenuePins = () => {
