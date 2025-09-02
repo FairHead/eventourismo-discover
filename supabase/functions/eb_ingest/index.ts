@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.0'
-import { normalizeName, mergeSources, mergeArrays, getBetterName, retryWithBackoff } from '../../ingest/utils/dedupe.ts'
+import { normalizeName, mergeSources, mergeArrays, getBetterName, retryWithBackoff } from '../_shared/dedupe.ts'
 
 const REQUEST_DELAY = 1000; // ms between requests to respect rate limits
 
