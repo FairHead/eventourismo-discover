@@ -101,13 +101,14 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
     try {
       console.log('🚀 Fetching aggregated venues for bounds...');
       const bbox = mapBoundsToBBox(bounds);
-      const venues = await loadAggregatedVenues({ bbox });
+      const venues = await loadAggregatedVenues(bbox);
       setAggregatedVenues(venues);
       console.log(`📍 Loaded ${venues.length} aggregated venues from APIs`);
     } catch (error) {
       console.error('Error fetching aggregated venues:', error);
     }
   };
+  
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const geoWatchIdRef = useRef<number | null>(null);
   const hasCenteredRef = useRef<boolean>(false);
@@ -1030,6 +1031,9 @@ const MapView: React.FC<MapViewProps> = ({ onPinClick, events = [], loading = fa
         console.warn('Error removing venue marker:', error);
       }
     });
+    setVenueMarkers([]);
+  };
+
   // Add aggregated venue pins from external APIs
   const addAggregatedVenuePins = () => {
     if (!map.current || aggregatedVenues.length === 0) return;

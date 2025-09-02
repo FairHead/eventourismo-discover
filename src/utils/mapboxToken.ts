@@ -79,11 +79,7 @@ export async function getMapboxToken(): Promise<string> {
 export async function setMapboxAccessToken(): Promise<void> {
   const token = await getMapboxToken();
   
-  // Dynamisches Import von mapbox-gl falls nicht verfügbar
-  try {
-    const mapboxgl = await import('mapbox-gl');
-    mapboxgl.default.accessToken = token;
-  } catch (error) {
-    console.warn('Mapbox GL not available:', error);
-  }
+  // Note: mapboxgl.accessToken should be set directly in components that import mapboxgl
+  // This avoids conflicts with static imports
+  return Promise.resolve();
 }
